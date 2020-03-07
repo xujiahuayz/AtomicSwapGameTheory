@@ -1,0 +1,184 @@
+---
+title: "Plots"
+output: html_document
+---
+
+```{r setup, include=F}
+library(tikzDevice)
+library(magrittr)
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(shiny)
+library(shinythemes)
+library(dplyr)
+library(readr)
+library(mvtnorm)
+library(VGAM)
+library(sampleSelection)
+library(rootSolve)
+library(plotly)
+
+opts_chunk$set(#dev='tikz', 
+               fig.path='./figure/', 
+               echo=F, error=F, cache=F, message=F, warning=F,
+               # results='hide', 
+               autodep=T)
+
+options(stringsAsFactors = F)
+```
+
+```{r parameters, include=F}
+betaA = 0.1
+betaB = 0.1
+gammaA = 0.2
+gammaB = 0.2
+# deltaA = 0.5
+# deltaB = 0.5
+mu = 0.002
+sigma = 0.01
+epsilon1 = 0.01
+epsilon2 = 0.01
+taua = 3
+taub = 4
+taueps = 1
+```
+
+```{r functions, include=F}
+funcutil = function(Price,Time,Ds,Dc,bet,gam,del){
+  (1+gam*Ds+del*Ds*Dc)*Price/exp(bet*Time)
+}
+
+
+funcgbmpdf = function(x, Price, Time){
+  exp(-(
+   2 * log(x/Price) - (2*mu-sigma^2)*Time
+  )^2/(8*sigma^2*Time)
+  )/(
+    sqrt(2*pi)*x*sigma*sqrt(Time)
+    )
+}
+
+
+funcgbmcdf = function(x, Price, Time){(
+  1+erf(
+    (log(Price/x)+(mu-sigma^2/2)*Time)/(sqrt(2*taub)*sigma)
+    )
+  )/2
+}
+
+pt3thresh = function(P0){
+  (P0-2*epsilon1)/(
+  (1+gammaA+deltaA)*(1-2*epsilon2)*exp((mu-betaA)*taub+betaA*(taua+taueps))
+)
+}
+
+funcpt2thresh = function(x, P0){
+  p = funcgbmcdf(pt3thresh(P0), x, taub)
+        p*funcutil(
+        P0-2*epsilon1,taua+taueps,1,1,betaB,gammaB,deltaB
+        )+(1-p)*funcutil(
+        x*exp(2*mu*taub)*(1-2*epsilon2),taua+taueps,1,0,betaB,gammaB,deltaB
+        ) - x
+}
+
+funcoptAutil = function(pt3vs){
+  funcutil(
+  pt3vs*exp(mu*taub)*(1-2*epsilon2),taub,1,1,betaA,gammaA,deltaA)
+}
+
+
+opt2A = function(P0){
+  funcutil(P0-2*epsilon1,taua+taueps,0,1,betaA,gammaA,deltaA)
+}
+
+
+pt2threshs = function(P0){
+  tempfunc = function(x){funcpt2thresh(x, P0)}
+  uniroot.all(tempfunc, lower = 0.01, upper = 999999999)
+}
+
+funcAutil2 = function(pt2, P0){
+  temp = function(pt3){
+    funcgbmpdf(pt3, pt2, taua) * ifelse(pt3<pt3thresh(P0), opt2A(P0), funcoptAutil(pt3))
+  }
+  integrate(temp, 0, Inf)$value
+}
+
+
+funcAutilcontinue = function(P0){
+  temp = function(pt2){
+    funcgbmpdf(pt2, P0, taua) * funcAutil2(pt2,P0)
+  }
+  pt2threshv = pt2threshs(P0)
+  utilt3 = integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2])$value
+  
+  probBobwaive = 1-funcgbmcdf(pt2threshv[2], P0, taua) + funcgbmcdf(pt2threshv[1], P0, taua)
+  utilt3/exp(betaA*(taua+taub))+probBobwaive*(P0-2*epsilon1)*(1+gammaA)/exp(betaA*(2*taua+taub))
+}
+
+```
+
+```{r plots, include=F}
+
+for(P0 in c(0.6, 0.7, 0.8)){
+  pt3threshv = pt3thresh(P0)
+  
+  pt3vs1 = seq(1e-10,pt3threshv,length.out = 200)
+  pt3vs2 = seq(pt3threshv, 2,length.out = 200)
+  
+  pt3vs = c(pt3vs1, pt3vs2)
+  
+  plot(pt3vs, funcoptAutil(pt3vs), type = 'l')
+  
+  opt2Av = opt2A(P0)
+  lines(pt3vs, rep(opt2Av, length(pt3vs)))
+  
+  lines(pt3vs, c(
+  rep(opt2Av, length(pt3vs1)),
+  funcoptAutil(pt3vs2)
+  ), col = 'green', cex = 2)
+
+
+# points(pt3thresh, opt2A, pch = '.', col = 'red', cex = 5)
+  
+  pt2s = c(0.2, 0.5, 0.8)
+  
+  for(pt2 in pt2s){
+  plot(pt3vs, funcgbmpdf(pt3vs, pt2, taub), type = 'l')
+  abline(v = pt3threshv)
+  # print(funcgbmcdf(pt3threshv, pt2, taub))
+  }
+  
+  pt2vs = seq(1e-10,1,length.out = 200)
+  
+  plot(pt2vs, pt2vs, type = 'l')
+  
+  ps = funcgbmcdf(pt3threshv, pt2vs, taub)
+  
+  lines(pt2vs,
+      ps*funcutil(
+        P0-2*epsilon1,taua+taueps,1,1,betaB,gammaB,deltaB
+        )+(1-ps)*funcutil(
+        pt2vs*exp(2*mu*taub)*(1-2*epsilon2),taua+taueps,1,0,betaB,gammaB,deltaB
+        )
+        )
+  
+  pt1s = P0
+  
+  for(pt1 in pt1s){
+  plot(pt2vs, funcgbmpdf(pt2vs, P0, taua), type = 'l')
+  abline(v = pt2threshs(P0))
+  # print(funcgbmcdf(pt3thresh, pt2, taub))
+}
+}
+
+P0s = seq(0.1,2,length.out = 500)
+
+utilA0 = Vectorize(funcAutilcontinue)(P0s)
+
+plot(c(0,max(P0s)),c(0,max(P0s)),type = 'l')
+lines(P0s, utilA0)
+
+```
+
