@@ -35,6 +35,8 @@ par(mar = c(0.5,0.5,0,0), oma = c(1,1,1,0), mgp = c(0.5, 0, 0), cex.axis=.9, cex
 ```
 
 ```{r parameters, include=F}
+test = read.csv(file = 'Aggregate.csv', nrows = 10)
+
 alphas = c(0.2, 0.2) # agent 1 or 2
 rs = c(0.01, 0.01) # agent 1 or 2
 
@@ -46,16 +48,22 @@ taueps = 1
 pt1 = 2 #current price is given, but strike price is to be negotiated
 
 P0s = seq(0.2,3,length.out = 999)
+
+# universal upper boundary of alpha
+alphaupper = 1
+
+# universal lower boundary of alpha
+alphalower = -1
 ```
 
 ```{r functions, include=F}
 # Utility function
-funcutil = function(Price,Time,Suc,agent){
+util = function(Price, Time, Suc, agent){
   (1+alphas[agent]*Suc)*Price/exp(rs[agent]*Time)
 }
 
 # Brownian motion PDF
-funcgbmpdf = function(x, Price, Time){
+gbmpdf = function(x, Price, Time){
   exp(-(
    2 * log(x/Price) - (2*mu-sigma^2)*Time
   )^2/(8*sigma^2*Time)
@@ -65,7 +73,7 @@ funcgbmpdf = function(x, Price, Time){
 }
 
 # Brownian motion CDF
-funcgbmcdf = function(x, Price, Time){
+gbmcdf = function(x, Price, Time){
   erfc( # complementary error function erfc
     (log(Price/x)+(mu-sigma^2/2)*Time)/(sqrt(2*Time)*sigma)
     )/2
@@ -74,112 +82,244 @@ funcgbmcdf = function(x, Price, Time){
 # Price = 2
 # Time = 2
 # x = seq(0, 4, 0.01)
-# plot(x, funcgbmpdf(x, Price, Time), type = 'l') # checked with mathematica
-# plot(x, funcgbmcdf(x, Price, Time), type = 'l') # checked with mathematica
+# plot(x, gbmpdf(x, Price, Time), type = 'l') # checked with mathematica
+# plot(x, gbmcdf(x, Price, Time), type = 'l') # checked with mathematica
 
-
-# price lower bound for Alice
-pt3thresh = function(P0){
+# price lower bound for Alice to continue at t3
+P3l = function(P0, alpha){
   P0/(
-  (1+alphas[1])*exp((mu-rs[1])*taub+rs[1]*(taua+taueps))
+  (1+alpha)*exp((mu-rs[1])*taub+rs[1]*(taua+taueps))
 )
 }
 
+## unitily of Alice at t_3 if continue, Alice gets 1 at t_3+taub if P_3 > P_3 lowerbound
+util2Acont = function(pt3vs){util(
+  pt3vs*exp(mu*taub), taub, 1, 1
+  )}
+
+## utility of Alice at t_3 if withdraw, Alice gets P0 at t_3+taua+taueps
+util2Astop = function(P0){
+  util(P0, taua+taueps, 0, 1)
+}
+
+## expected utility of Alice at t_3 given t_2
+util2A = function(pt2, P0, alpha=alphas[1]){
+  pt3threshv = P3l(P0, alpha)
+  temp = function(pt3){
+    gbmpdf(pt3, pt2, taub) * util2Acont(pt3)
+  }
+  gbmcdf(pt3threshv, pt2, taub) * util2Astop(P0) + integrate(temp, pt3threshv, Inf, abs.tol = 0)$value
+}
+
+
 # expected utility for Bob if continue
-funcoptButil2 = function(x, P0){
+utilBcont = function(x, P0){
   # probability to be lower than lower bound 
-  p = funcgbmcdf(pt3thresh(P0), x, taub)
-  (1-p)*funcutil(
+  p = gbmcdf(P3l(P0, alphas[1]), x, taub)
+  (1-p)*util(
     P0,taua+taueps,1,2
-    )+p*funcutil(
-      x*exp(2*mu*taub),2*taub,0,2
+    ) + p*util(
+      x*exp(2*mu*taub), 2*taub, 0, 2
       )
 }
 
-funcpt2thresh = function(x, P0){
-funcoptButil2(x, P0)- x
+## for Bob, how much does continue utility exceed waive
+contlessstopB = function(x, P0){
+    utilBcont(x, P0) - x
 }
 
-pt2threshs = function(P0){
-  tempfunc = function(x){funcpt2thresh(x, P0)}
+P2thresh = function(P0){
+  tempfunc = function(x){contlessstopB(x, P0)}
   uniroot.all(tempfunc, lower = 0.01, upper = 999, maxiter = 99999, n = 9999)
 }
 
-funcoptAutil = function(pt3vs){
-  funcutil(
-  pt3vs*exp(mu*taub),taub,1,1)
-}
 
-# utility of Alice at t_3 if withdraw
-opt2A = function(P0){
-  funcutil(P0,taua+taueps,0,1)
-}
-
-
-funcAutil2 = function(pt2, P0){
-  pt3threshv = pt3thresh(P0)
-  temp = function(pt3){
-    funcgbmpdf(pt3, pt2, taub) * funcoptAutil(pt3)
-  }
-  funcgbmcdf(pt3threshv, pt2, taub) * opt2A(P0) + integrate(temp, pt3threshv, Inf, abs.tol = 0)$value
-}
-
-# P0 = P0s[42]
-funcAutilcontinue = function(P0){
-  temp = function(pt2){
-    funcgbmpdf(pt2, pt1, taua) * funcAutil2(pt2,P0)
-  }
-  pt2threshv = pt2threshs(P0)
+## Utility of Alice at t_1 if continue
+util1Acont = function(P0){
   
-  # gives terribly wrong answer if omitting abs.tol
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, taua) * util2A(pt2, P0)
+  }
+  pt2threshv = P2thresh(P0)
+  
+  # Alice's utility at t3 if Bob continues, gives terribly wrong answer if omitting abs.tol
   utilt3 = integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2], abs.tol = 0)$value
   
-  probBobwaive = 1-funcgbmcdf(pt2threshv[2], P0, taua) + funcgbmcdf(pt2threshv[1], P0, taua)
-  utilt3/exp(rs[1]*(taua+taub))+probBobwaive*P0/exp(rs[1]*(2*taua+taub))
+  probBobwaive = 1-gbmcdf(pt2threshv[2], P0, taua) + gbmcdf(pt2threshv[1], P0, taua)
+  utilt3/exp(rs[1]*(taua+taub)) + probBobwaive*P0/exp(rs[1]*(2*taua+taub))
 }
 
 
-funcsuccessrate = function(P0){
-  pt3threshv = pt3thresh(P0)
+sucrate = function(P0){
+  pt3threshv = P3l(P0, alphas[1])
   temp = function(pt2){
-    funcgbmpdf(pt2, pt1, taua) * funcgbmcdf(pt3threshv, pt2, taub)
+    gbmpdf(pt2, pt1, taua) * gbmcdf(pt3threshv, pt2, taub)
   }
-  pt2threshv = pt2threshs(P0)
+  pt2threshv = P2thresh(P0)
   
   # gives terribly wrong answer if omitting abs.tol
   integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2], abs.tol = 0)$value
 }
 
-# P0 = P0s[41]
-# pt2threshv = pt2threshs(P0)
-# vs = seq(pt2threshv[1],pt2threshv[2], length.out = 9999)
-# df = data.table(x=vs, y=Vectorize(temp)(vs))
-# 
-# (df$y %>% sum)*diff(pt2threshv)/9999
-# temp = function(pt2){
-#     funcgbmpdf(pt2, pt1, taua) * funcAutil2(pt2,P0)
-# }
-# 
-# integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2],abs.tol = 0)$value
 
+## now if type is uncertain
+
+
+# uncertain utility function is used when one agent is calculating the other agent's utility, where the other agent's alpha is unknown
+# when one agent is calculating its own utility, use `util`, or specify alpha = alphas[agent]
+utilunc = function(Price, Time, Suc, agent, alpha){
+  (1+alpha*Suc)*Price/exp(rs[agent]*Time)
+}
+
+## expected utility for Bob if continue, uncertain about alpha^A, but alpha^A lower bound is known
+utilBcontunc = function(x, P0, alphalower, alphaB){
+  temp = function(alphaA){
+  # probability to be lower than lower bound 
+  p = gbmcdf(P3l(P0, alphaA), x, taub)
+  (1-p)*utilunc(
+    P0, taua+taueps, 1, 2, alphaB
+    )+p*utilunc(
+      x*exp(2*mu*taub), 2*taub, 0, 2, alphaB
+    )
+  }
+  
+  integrate(Vectorize(temp), alphalower, 1, abs.tol = 0)$value / (1-alphalower)
+}
+
+contlessstopBunc = function(x, P0, alphalower, alphaB){
+utilBcontunc(x, P0, alphalower, alphaB)- x
+}
+
+
+# Higher alphaB should relax the feasible range of P_2. Note that when alphaB is too small, maybe no P_2 will make Bob trade. The borderline alphaB should lead to one feasible P_2 point
+P2threshunc = function(P0, alphalower, alphaB){
+  tempfunc = function(x){contlessstopBunc(x, P0, alphalower, alphaB)
+    }
+  
+  # if not vectorize: evaluation of function gave a result of wrong length
+  uniroot.all(Vectorize(tempfunc), lower = 0.001, upper = 999, maxiter = 99999, n = 9999)
+}
+
+## expected utility of Alice at t_3 given t_2
+
+# # Bob estimates its utility given alpha^A's lower boundary
+# util2Aunc = function(pt2, P0, alphalower){
+#   temp0 = function(alpha){
+#   pt3threshv = P3l(P0, alpha)
+#   temp = function(pt3){
+#     gbmpdf(pt3, pt2, taub) * util2Acont(pt3)
+#   }
+#   gbmcdf(pt3threshv, pt2, taub) * util2Astop(P0) + integrate(temp, pt3threshv, Inf, abs.tol = 0)$value
+#   }
+#   integrate(Vectorize(temp0), alphalower, 1, abs.tol = 0)$value / (1-alphalower)
+# }
+
+
+## unitily of Alice at t_3 if continue, Alice gets 1 at t_3+taub if P_3 > P_3 lowerbound
+util2Acontunc = function(pt3vs, alpha){utilunc(
+  pt3vs*exp(mu*taub), taub, 1, 1, alpha
+  )}
+
+## utility of Alice at t_3 if withdraw, Alice gets P0 at t_3+taua+taueps
+util2Astopunc = function(P0, alpha){utilunc(
+  P0, taua+taueps, 0, 1, alpha
+  )}
+
+## expected utility of Alice at t_3 given t_2
+util2Aunc = function(pt2, P0, alpha=alphalower){
+  pt3threshv = P3l(P0, alpha)
+  temp = function(pt3){
+    gbmpdf(pt3, pt2, taub) * util2Acontunc(pt3, alpha)
+  }
+  gbmcdf(pt3threshv, pt2, taub) * util2Astopunc(P0, alpha) + integrate(temp, pt3threshv, Inf, abs.tol = 0)$value
+}
+
+
+## only calculate the boundary value
+util1Acontunc = function(P0, alphalower, alphaB){
+  
+  pt2threshv = P2threshunc(P0, alphalower, alphaB)
+  
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, taua) * util2Aunc(pt2, P0, alpha=alphalower)
+  }
+  
+  utilAifBwaiv = P0/exp(rs[1]*(2*taua+taub))
+  
+  if(length(pt2threshv)==0){
+    # alphaB too small, Bob will never swap anyway.
+    utilAifBwaiv
+  }else{
+    # Alice's utility at t3 if Bob continues, gives terribly wrong answer if omitting abs.tol
+    utilt3 = integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2], abs.tol = 0)$value
+    probBobwaive = 1 - gbmcdf(pt2threshv[2], P0, taua) + gbmcdf(pt2threshv[1], P0, taua)
+    
+    utilt3 / exp(rs[1]*(taua+taub)) + probBobwaive*utilAifBwaiv
+  }
+}
+
+# util1Acontunc(P0=1.2, 0, alphaB=0.5)
+# util1Acontunc(P0=1.2, 0.9999999, alphaB=0.5)
+
+startlessstopAunc = function(P0, alphalower){
+  temp = function(alphaB){util1Acontunc(P0, alphalower, alphaB)}
+  integrate(Vectorize(temp), 0, 1, abs.tol = 0)$value - P0
+}
+
+alphal = function(P0){
+  temp = function(alphalower){
+    startlessstopAunc(P0, alphalower)
+  }
+  uniroot(Vectorize(temp), c(0.00001, 0.99999))
+}
+```
+
+```{r alphalower, include=F, eval=T}
+datanumber = 11
+P0s = seq(1.5, 3, length.out = datanumber)
+
+alphals = rep(NA, datanumber)
+
+# for (i in 1:datanumber){
+#   try(
+#     alphals[i] <- alphal(P0s[i])$root, silent = T
+#   )
+#   # if (startlessstopAunc(P0s[i], 0) >= 0){
+#   #  alphals[i] = 0
+#   # }else{
+#   #   if (startlessstopAunc(P0s[i], 0) > 0){
+#   #     alphals[i] = alphal(P0s[i])$root
+#   #   }
+#   # }
+# }
+
+# save(alphals, file = "alphals.rda")
+
+load('alphals.rda')
+
+par(mar = c(2,2,0,0), oma = c(1,1,0,0), mgp = c(1, 0, 0), cex.axis=.9, cex = 1.7, tck = -0.01)
+
+plot(P0s, alphals, type = 'b', pch = 4, xlab='P0', ylab = 'lower bound of alpha^A')
+abline(v = pt1, lty =2)
+text(x=pt1, y =0, 'Price at t1')
 ```
 
 ```{r plots, include=F, eval=F}
 
 for(P0 in c(1.5, 2, 2.5)){
   par(mar = c(2,2,2,0), oma = c(1,1,0,0), mgp = c(1, 0, 0), cex.axis=.9, cex = 1.7, tck = -0.01)
-  pt3threshv = pt3thresh(P0)
+  pt3threshv = P3l(P0, alphas[1])
   
   pt3vs1 = seq(1e-10,pt3threshv,length.out = 200)
   pt3vs2 = seq(pt3threshv, 5,length.out = 200)
   
   pt3vs = c(pt3vs1, pt3vs2)
   
-  plot(pt3vs, funcoptAutil(pt3vs), type = 'l', 
+  plot(pt3vs, util2Acont(pt3vs), type = 'l', 
        xlab = 'Price at t3', ylab = "Alice's utility at t3", 
        col = 'chartreuse3', main = paste('P0 =', P0))
   
-  opt2Av = opt2A(P0)
+  opt2Av = util2Astop(P0)
   lines(pt3vs, rep(opt2Av, length(pt3vs)))
   
   points(pt3threshv, opt2Av, pch = '.', col = 'red', cex = 5)
@@ -193,17 +333,17 @@ for(P0 in c(1.5, 2, 2.5)){
   # 
   # lines(pt3vs, c(
   # rep(opt2Av, length(pt3vs1)),
-  # funcoptAutil(pt3vs2)
+  # util2Acont(pt3vs2)
   # ), col = 'chartreuse3', cex = 2)
   
   
   pt2s = c(1, 2, 3)
   
-  plot(pt3vs, funcgbmpdf(pt3vs, pt2s[1], taub), type = 'l', 
+  plot(pt3vs, gbmpdf(pt3vs, pt2s[1], taub), type = 'l', 
        xlab = 'Price at t3', 
        ylab = 'Density', lty = 2, main = paste('P0 =', P0))
-  lines(pt3vs, funcgbmpdf(pt3vs, pt2s[2], taub), lty = 1)
-  lines(pt3vs, funcgbmpdf(pt3vs, pt2s[3], taub), lty = 3)
+  lines(pt3vs, gbmpdf(pt3vs, pt2s[2], taub), lty = 1)
+  lines(pt3vs, gbmpdf(pt3vs, pt2s[3], taub), lty = 3)
   
   abline(v = pt3threshv, col = 'red')
   
@@ -214,11 +354,11 @@ for(P0 in c(1.5, 2, 2.5)){
   
   pt2vs = seq(1e-10,5,length.out = 200)
   
-  pt2threshsv = pt2threshs(P0)
+  pt2threshsv = P2thresh(P0)
   
   plot(pt2vs, pt2vs, type = 'l', 
        xlab = 'Price at t2', ylab = "Bob's utility at t2", main = paste('P0 =', P0))
-  lines(pt2vs, funcoptButil2(pt2vs, P0), col = 'chartreuse3')
+  lines(pt2vs, utilBcont(pt2vs, P0), col = 'chartreuse3')
   points(pt2threshsv[1], pt2threshsv[1], pch = '.', col = 'red', cex = 5)
   points(pt2threshsv[2], pt2threshsv[2], pch = '.', col = 'blue', cex = 5)
   
@@ -228,17 +368,17 @@ for(P0 in c(1.5, 2, 2.5)){
          col = c('chartreuse3', 'black', 'red', 'blue'), 
          legend = c('continue', 'withdraw', 'Price lower bound at t2', 'Price upper bound at t2'))
   
-  plot(pt2vs, funcgbmpdf(pt2vs, pt1, taua), type = 'l',
+  plot(pt2vs, gbmpdf(pt2vs, pt1, taua), type = 'l',
        xlab = 'Price at t2', ylab = 'Density', main = paste('P0 =', P0))
   abline(v = pt2threshsv, col = c('red', 'blue'))
 }
 
 # utilA0=c()
 # for (P0 in P0s){
-#   utilA0 = c(utilA0, funcAutilcontinue(P0))
+#   utilA0 = c(utilA0, util1Acont(P0))
 # }
 
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 
 plot(c(0,max(P0s)),c(0,max(P0s)),type = 'l', 
        xlab = 'Swap price P0', ylab = "Alice's utility at t1")
@@ -255,8 +395,6 @@ legend('topleft', lty = c(1,1, NA, NA),
          pt.cex = 5,
          col = c('chartreuse3', 'black', 'red', 'blue'), 
          legend = c('continue', 'withdraw', 'Swap price lower bound ', 'Swap price upper bound'))
-
-
 ```
 
 ```{r tauas, include=F, eval = F}
@@ -271,7 +409,7 @@ tauas = c(0.5, 3, 5.5)
 ltys = c(2,1,3)
 for (i in 1:3){
 taua = tauas[i]
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 lines(P0s, utilA0, col = 'chartreuse3', lty = ltys[i])
 
 p0boundsind = which(diff(P0s-utilA0 <0)!=0)
@@ -301,7 +439,7 @@ taubs = c(0.5, 4, 7.5)
 ltys = c(2,1,3)
 for (i in 1:3){
 taub = taubs[i]
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 lines(P0s, utilA0, col = 'chartreuse3', lty = ltys[i])
 
 p0boundsind = which(diff(P0s-utilA0 <0)!=0)
@@ -331,13 +469,13 @@ sucrates = list()
 
 for (i in 1:3){
 sigma = sigmas[i]
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 utilA0s[[i]] = utilA0
 p0boundsind = which(diff(P0s-utilA0 <0)!=0)
 
 validp0 = seq(P0s[p0boundsind[1]], P0s[p0boundsind[2]], length.out = 999)
 validp0s[[i]] = validp0
-sucrates[[i]] = Vectorize(funcsuccessrate)(validp0)
+sucrates[[i]] = Vectorize(sucrate)(validp0)
 }
 
 
@@ -391,7 +529,7 @@ a1s = c(0.1, 0.2, 0.3)
 ltys = c(2,1,3)
 for (i in 1:3){
 alphas[1] = a1s[i]
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 lines(P0s, utilA0, col = 'chartreuse3', lty = ltys[i])
 
 p0boundsind = which(diff(P0s-utilA0 <0)!=0)
@@ -422,7 +560,7 @@ r1s = c(0.001, 0.01, 0.05)
 ltys = c(2,1,3)
 for (i in 1:3){
 rs[1] = r1s[i]
-utilA0 = Vectorize(funcAutilcontinue)(P0s)
+utilA0 = Vectorize(util1Acont)(P0s)
 lines(P0s, utilA0, col = 'chartreuse3', lty = ltys[i])
 
 p0boundsind = which(diff(P0s-utilA0 <0)!=0)
