@@ -21,8 +21,8 @@ The last section offers two extensions.  The first is possibly the most interest
 
 Comments for author
 -------------------
-"backwardization" -> "backward induction"
-inequality (4) is reversed
+- [x] "backwardization" -> "backward induction"
+- [x] inequality (4) is reversed
 
 
 
@@ -61,21 +61,28 @@ However, it is not clear how this paper contributes to the area because of follo
 
 
 Furthermore, the presentation can be improved as well.
-Ethers
-Decide not [to] follow.
-First, it will be better to use consistent presentation of set-up or setup, one-time or onetime
+
+- [ ] Ethers *JX: what's that?*
+- [x] Decide not [to] follow.
+- [x] First, it will be better to use consistent presentation of set-up or setup, one-time or onetime
+
 Abstract
-decide not follow -> decide not to follow
-collaterization -> collateralization 
+
+- [x] decide not follow -> decide not to follow
+- [x] collaterization -> collateralization 
+
 Introduction
-evidences -> evidence
-They allow to execute larger orders -> They were allow to execute larger orders
-with negotiated price -> with a negotiated price
-agents’s -> agents’
+
+- [x] evidences -> evidence
+- [x] They allow to execute larger orders -> They were allow to execute larger orders *JX: deleted*
+- [x] with negotiated price -> with a negotiated price
+- [x] agents’s -> agents’
+
 Section 2
-in distributed manner -> in a distributed manner
-coordination mechanism -> coordination mechanisms
-aiming to achieving atomicity -> aiming to achieve atomicity
+
+- [x] in distributed manner -> in a distributed manner
+- [x] coordination mechanism -> coordination mechanisms
+- [x] aiming to achieving atomicity -> aiming to achieve atomicity
 ...
 
 
@@ -112,16 +119,21 @@ The paper proposes an interesting model to study the chance of success of atomic
 Comments for author
 -------------------
 Major Comments
-The paper does not give a clear picture of the time scale of atomic swaps. If the deadlines TA and TB are in the order of days or even hours, I can imagine that variations in asset pricing might create incentives for aborting; however, if TA and TB are in the order of a few second or minutes I don't feel the paper is modeling a relevant phenomenon. The paper could give more justification by giving examples of the atomic swaps and real values for TA and TB.
+The paper does not give a clear picture of the time scale of atomic swaps. 
 
-I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. The paper is also assuming a deterministic discount rate of the assets (which again depends on the time scale of TA and TB). So looks like the Claims that Alice would want to abort the swap are just driven by an obvious observation because if you consider the infinite horizon Alice would never start the exchange in the first place. In fact, under positive drift even with collaterals, with high probability Alice will always abort given enough time TA.
+- [ ] If the deadlines TA and TB are in the order of days or even hours, I can imagine that variations in asset pricing might create incentives for aborting; however, if TA and TB are in the order of a few second or minutes I don't feel the paper is modeling a relevant phenomenon. The paper could give more justification by giving examples of the atomic swaps and real values for TA and TB.
+
+- [ ] I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. 
+
+The paper is also assuming a deterministic discount rate of the assets (which again depends on the time scale of TA and TB). So looks like the Claims that Alice would want to abort the swap are just driven by an obvious observation because if you consider the infinite horizon Alice would never start the exchange in the first place. In fact, under positive drift even with collaterals, with high probability Alice will always abort given enough time TA.
 
 The paper could still be interesting assuming no drift when TA and TB have large timescale but it chose to be overly complicated without giving clear reasons for the complicated model.
 
 Minor Comments
-	- Abstract: key-words separated by a semi-colon
-	- In the related work section, you mention that a downside of relays, sidechains, etc… require contracts. But aren't HTLCs contracts too?
-	- You mention a discussion in a blog that says that 5% of transactions fail. You might want to add a reference to that discussion.
+
+- [x] Abstract: key-words separated by a semi-colon *JX: does not apply to SP template*
+- [ ] In the related work section, you mention that a downside of relays, sidechains, etc… require contracts. But aren't HTLCs contracts too? *AD & DA?*
+- [ ] You mention a discussion in a blog that says that 5% of transactions fail. You might want to add a reference to that discussion. *AD & DA?*
 
 
 
