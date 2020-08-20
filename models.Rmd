@@ -35,9 +35,10 @@ par(mar = c(0.5,0.5,0,0), oma = c(1,1,1,0), mgp = c(0.5, 0, 0), cex.axis=.9, cex
 ```
 
 ```{r parameters, include=F}
-test = read.csv(file = 'Aggregate.csv', nrows = 10)
-
+# success premiums
 alphas = c(0.2, 0.2) # agent 1 or 2
+
+# coumpound rates
 rs = c(0.01, 0.01) # agent 1 or 2
 
 mu = 0.002
@@ -47,13 +48,13 @@ taub = 4
 taueps = 1
 pt1 = 2 #current price is given, but strike price is to be negotiated
 
-P0s = seq(0.2,3,length.out = 999)
+P0s = seq(0.18,3,length.out = 999)
 
 # universal upper boundary of alpha
 alphaupper = 1
 
 # universal lower boundary of alpha
-alphalower = -1
+alphalower = 0 # -1
 ```
 
 ```{r functions, include=F}
@@ -79,6 +80,9 @@ gbmcdf = function(x, Price, Time){
     )/2
 }
 
+```
+
+```{r basic, include=F}
 # Price = 2
 # Time = 2
 # x = seq(0, 4, 0.01)
@@ -153,17 +157,188 @@ util1Acont = function(P0){
 sucrate = function(P0){
   pt3threshv = P3l(P0, alphas[1])
   temp = function(pt2){
-    gbmpdf(pt2, pt1, taua) * gbmcdf(pt3threshv, pt2, taub)
+    gbmpdf(pt2, pt1, taua) * (1-gbmcdf(pt3threshv, pt2, taub))
   }
   pt2threshv = P2thresh(P0)
   
   # gives terribly wrong answer if omitting abs.tol
-  integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2], abs.tol = 0)$value
+  integrate(Vectorize(temp), pt2threshv[1], pt2threshv[2]
+            # , abs.tol = 0
+            )$value
+}
+
+```
+
+```{r collateral, include=F}
+# Utility function with collateral
+util_col = function(Price, Time, Suc, agent, Col, tc){
+  (1+alphas[agent]*Suc)*Price/exp(rs[agent]*Time) +
+    Col/exp(rs[agent]*tc)
+}
+
+# price lower bound for Alice to continue at t3
+P3l_col = function(P0, alpha){
+  pmax(
+    P0/exp(rs[1]*(taua+taueps)) - collat[1]/exp(taua*rs[1]),
+    0
+  ) * exp((rs[1]-mu)*taub)/(1+alpha)
+}
+
+## unitily of Alice at t_3 if continue, Alice gets 1 at t_3+taub and C_A at t_3+tau_a, if P_3 > P_3 lowerbound
+util2Acont_col = function(pt3vs){util_col(
+  pt3vs*exp(mu*taub), taub, 1, 1, collat[1], taua
+  )}
+
+## utility of Alice at t_3 if withdraw, Alice gets P0 at t_3+taua+taueps
+# util2Astop = function(P0){
+#   util(P0, taua+taueps, 0, 1)
+# } ## already defined above
+
+
+## expected utility of Alice at t_3 given t_2
+util2A_col = function(pt2, P0, alpha=alphas[1]){
+  pt3threshv = P3l_col(P0, alpha)
+  temp = function(pt3){
+    gbmpdf(pt3, pt2, taub) * util2Acont_col(pt3)
+  }
+  # here with Inf, R won't evaluate, so just do 15
+  gbmcdf(pt3threshv, pt2, taub) * util2Astop(P0) + integrate(temp, pt3threshv, Inf)$value
 }
 
 
-## now if type is uncertain
+# expected utility for Bob if continue
+utilBcont_col = function(x, P0){
+  # probability to be lower than lower bound 
+  p = gbmcdf(P3l(P0, alphas[1]), x, taub)
+  collat[2]/exp(rs[2] * taua) +
+  (1-p)*util(
+    P0,taua+taueps,1,2
+    ) + p*util_col(
+      x*exp(2*mu*taub), 2*taub, 0, 2, collat[1], taub+taua
+      )
+}
 
+## for Bob, how much does continue utility exceed waive
+contlessstopB_col = function(x, P0){
+    utilBcont_col(x, P0) - x
+}
+
+P2thresh_col = function(P0){
+  tempfunc = function(x){
+    utilBcont_col(x, P0) - x
+    }
+  uniroot.all(tempfunc, lower = 0.001, upper = 999, maxiter = 99999, n = 9999)
+}
+## Note that there can be 3 roots!!!
+
+## Utility of Alice at t_1 if continue
+util1Acont_col = function(P0){
+  
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, taua) * util2A_col(pt2, P0)
+  }
+  pt2threshv = P2thresh_col(P0)
+  
+  
+  if (length(pt2threshv) != 2){
+  pt2threshv = union(0.0001, pt2threshv)
+  }
+  
+  # pt2threshv = c(0, pt2threshv)
+  
+  utilt3  = 0
+  
+  probBobcont = 0
+  
+  # integrate over all sets that make U_continue > U_waive
+  for (bound_ind in seq(1, length(pt2threshv), by = 2)){
+    # Alice's utility at t3 if Bob continues, gives terribly wrong answer if omitting abs.tol
+  utilt3 = utilt3 + integrate(
+    Vectorize(temp), pt2threshv[bound_ind], pt2threshv[bound_ind+1], abs.tol = 0
+    )$value
+  probBobcont = probBobcont + (
+    gbmcdf(pt2threshv[bound_ind+1], P0, taua) - gbmcdf(pt2threshv[bound_ind], P0, taua)
+    )
+  }
+  
+  probBobwaive = 1-probBobcont
+  utilt3/exp(rs[1]*(taua+taub)) + 
+    probBobwaive*(
+      P0/exp(rs[1]*(2*taua+taub)) + (collat[1] + collat[2])/exp(rs[1]*2*taua)
+    )
+}
+
+
+## Utility of Bob at t_1 if continue
+util1Bcont_col = function(P0){
+   
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, taua) * pmax(utilBcont_col(pt2, P0), pt2)
+  }
+  integrate(
+    Vectorize(temp), 0, Inf, abs.tol = 0
+    )$value
+  # pt2threshv = P2thresh_col(P0)
+  # 
+  # 
+  # if (length(pt2threshv) != 2){
+  # pt2threshv = union(0.0001, pt2threshv)
+  # }
+  # 
+  # # utilt2B  = 0
+  # 
+  # probBobcont = 0
+  
+  # integrate over all sets that make U_continue > U_waive
+  # for (bound_ind in seq(1, length(pt2threshv), by = 2)){
+  #   # Bob's utility at t2, gives terribly wrong answer if omitting abs.tol
+  # utilt3 = utilt3 + integrate(
+  #   Vectorize(temp), pt2threshv[bound_ind], pt2threshv[bound_ind+1], abs.tol = 0
+  #   )$value
+  # probBobcont = probBobcont + (
+  #   gbmcdf(pt2threshv[bound_ind+1], P0, taua) - gbmcdf(pt2threshv[bound_ind], P0, taua)
+  #   )
+  # }
+  # 
+  # probBobwaive = 1-probBobcont
+  # utilt3/exp(rs[1]*(taua+taub)) + 
+  #   probBobwaive*(
+  #     P0/exp(rs[1]*(2*taua+taub)) + (collat[1] + collat[2])/exp(rs[1]*2*taua)
+  #   )
+}
+
+
+
+sucrate_col = function(P0){
+  pt3threshv = P3l_col(P0, alphas[1])
+  
+  pt2threshv = P2thresh_col(P0)
+    
+  if (length(pt2threshv) != 2){
+    # R can't handle  gbmpdf(0, pt1, taua), so pt2 has to be slightly above 0
+  pt2threshv = union(0.0001, pt2threshv)
+  }
+  
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, taua) * (1-gbmcdf(pt3threshv, pt2, taub))
+  }
+  
+  # integrate over all sets that make U_continue > U_waive
+  p = 0
+  for (bound_ind in seq(1, length(pt2threshv), by = 2)){
+  # gives terribly wrong answer if omitting abs.tol
+  p = p + integrate(
+    Vectorize(temp), pt2threshv[bound_ind], pt2threshv[bound_ind+1]
+    # , abs.tol = 0
+    )$value
+  }
+  return(p)
+}
+```
+
+```{r uncertain, include=F}
+
+## now if type is uncertain
 
 # uncertain utility function is used when one agent is calculating the other agent's utility, where the other agent's alpha is unknown
 # when one agent is calculating its own utility, use `util`, or specify alpha = alphas[agent]
@@ -272,9 +447,10 @@ alphal = function(P0){
   }
   uniroot(Vectorize(temp), c(0.00001, 0.99999))
 }
+
 ```
 
-```{r alphalower, include=F, eval=T}
+```{r alphalower, include=F, eval=F}
 datanumber = 11
 P0s = seq(1.5, 3, length.out = datanumber)
 
@@ -397,6 +573,198 @@ legend('topleft', lty = c(1,1, NA, NA),
          legend = c('continue', 'withdraw', 'Swap price lower bound ', 'Swap price upper bound'))
 ```
 
+```{r plots_col, include=F, eval=T}
+# no need to use `plots` chunk anymore, since no collateral is a special case of with collateral
+
+collat_list = list(c(0,0), c(0.02,0.02), c(0.5,0.5))
+for(collat_index in 1:length(collat_list)){
+  collat = collat_list[[collat_index]] # collaterals that Alice and Bob put in, respectively
+
+for(P0 in c(1.5, 2, 2.5)){
+  par(mar = c(2,2,2,0), oma = c(1,1,0,0), mgp = c(1, 0, 0), cex.axis=.9, cex = 1.7, tck = -0.01)
+  pt3threshv = P3l_col(P0, alphas[1])
+  
+  pt3vs1 = seq(1e-10,pt3threshv,length.out = 200)
+  pt3vs2 = seq(pt3threshv, 5,length.out = 200)
+  
+  pt3vs = c(pt3vs1, pt3vs2)
+  
+  plot(pt3vs, util2Acont_col(pt3vs), type = 'l', 
+       xlab = 'Price at t3', ylab = "Alice's utility at t3", 
+       col = 'chartreuse3', main = paste('P0 =', P0))
+  
+  opt2Av = util2Astop(P0)
+  lines(pt3vs, rep(opt2Av, length(pt3vs)))
+  
+  points(pt3threshv, opt2Av, pch = '.', col = 'red', cex = 5)
+  
+  legend('topleft', lty = c(1,1,NA), 
+         pch = c(NA, NA, '.'),
+         pt.cex = 5,
+         col = c('chartreuse3', 'black', 'red'), 
+         legend = c('continue', 'withdraw', 'Price lower bound at t3'))
+  
+  
+  pt2s = c(1, 2, 3)
+  
+  plot(pt3vs, gbmpdf(pt3vs, pt2s[1], taub), type = 'l', 
+       xlab = 'Price at t3', 
+       ylab = 'Density', lty = 2, main = paste('P0 =', P0))
+  lines(pt3vs, gbmpdf(pt3vs, pt2s[2], taub), lty = 1)
+  lines(pt3vs, gbmpdf(pt3vs, pt2s[3], taub), lty = 3)
+  
+  abline(v = pt3threshv, col = 'red')
+  
+  legend('topright', lty = c(2,1,3), 
+         legend = pt2s,
+         title = 'Price at t2')
+  
+  
+  pt2vs = seq(1e-10,5,length.out = 200)
+  
+  pt2threshsv = P2thresh_col(P0)
+  
+  plot(pt2vs, pt2vs, type = 'l', ylim = c(0,3), xlim =c(0,3),
+       xlab = 'Price at t2', ylab = "Bob's utility at t2", main = paste('P0 =', P0))
+  lines(pt2vs, utilBcont_col(pt2vs, P0), col = 'chartreuse3')
+  points(pt2threshsv,pt2threshsv, pch = '.', col = c('blue','red'), cex = 5)
+  # points(pt2threshsv[2], pt2threshsv[2], pch = '.', col = 'blue', cex = 5)
+  
+  legend('topleft', lty = c(1,1, NA, NA), 
+         pch = c(NA, NA, '.', '.'),
+         pt.cex = 5,
+         col = c('chartreuse3', 'black', 'red', 'blue'), 
+         legend = c('continue', 'withdraw', 'Price lower bounds at t2', 'Price upper bounds at t2'))
+  
+  plot(pt2vs, gbmpdf(pt2vs, pt1, taua), type = 'l',
+       xlab = 'Price at t2', ylab = 'Density', main = paste('P0 =', P0))
+  abline(v = pt2threshsv, col = c('red', 'blue'))
+}
+
+# utilA0=c()
+# for (P0 in P0s){
+#   utilA0 = c(utilA0, util1Acont(P0))
+# }
+
+utilA0 = Vectorize(util1Acont_col)(P0s)
+
+plot(c(0,max(P0s)),c(0,max(P0s)) + collat[1],type = 'l', ylim = c(0,3), xlim =c(0,3),
+       xlab = 'Swap price P0', ylab = "Alice's utility at t1")
+lines(P0s, utilA0, col = 'chartreuse3')
+
+p0boundsind = which(diff(P0s + collat[1] - utilA0 <0)!=0)
+points(P0s[p0boundsind], P0s[p0boundsind] + collat[1], col = c('red','blue'), pch = '.', cex = 5)
+text(x=pt1, y =0, 'Price at t1')
+
+legend('topleft', lty = c(1,1, NA, NA), 
+         pch = c(NA, NA, '.', '.'),
+         pt.cex = 5,
+         col = c('chartreuse3', 'black', 'red', 'blue'), 
+         legend = c('continue', 'withdraw', 'Swap price lower bound ', 'Swap price upper bound')
+       , cex = 0.6)
+
+
+
+# P0s_valid = seq(P0s[p0boundsind][1], P0s[p0boundsind][2], length.out = 99)
+utilB0 = Vectorize(util1Bcont_col)(P0s)
+
+plot(P0s, utilB0, col = 'chartreuse3',type = 'l', ylim = c(0,3), xlim =c(0,3),
+       xlab = 'Swap price P0', ylab = "Bob's utility at t1")
+
+abline(h = 1+collat[2], lty =1)
+abline(v = pt1, lty =2)
+abline(v = P0s[p0boundsind], lty =2, col = c('red','blue'))
+
+p0boundsind_B = which(diff(1 + collat[2] - utilB0 <0)!=0)
+
+if (length(p0boundsind_B)>0){
+points(P0s[p0boundsind_B], 1 + collat[2], col = c('orange'), pch = '.', cex = 5)
+}
+
+text(x=pt1, y =0, 'Price at t1')
+legend('topleft', lty = c(1,1,2,2, NA), 
+         pch = c(NA, NA,NA, NA, '.'),
+         pt.cex = 5,
+         col = c('chartreuse3', 'black', 'red', 'blue', 'orange'), 
+         legend = c('continue', 'withdraw', 
+                    'Swap price lower bound for Alice', 'Swap price upper bound for Alice',
+                    'Swap price lower bound for Bob' 
+                    ), cex = 0.6)
+}
+```
+
+```{r sigmas_coll, include=T, eval = F}
+taua = 3
+taub = 4
+
+sigmas = c(0.06, 0.09, 0.12)
+
+utilA0s = list()
+validp0s = list()
+sucrates = list()
+
+collat_list = list(c(0,0), c(0.02,0.02), c(0.5,0.5))
+for(collat_index in 1:length(collat_list)){
+  collat = collat_list[[collat_index]] # collaterals that Alice and Bob put in, respectively
+for (i in 1:3){
+sigma = sigmas[i]
+utilA0 = Vectorize(util1Acont_col)(P0s)
+# for (x in P0s){
+#   print(util1Acont_col(x))
+#   print(x)
+# }
+
+utilA0s[[i]] = utilA0
+p0boundsind = which(diff(P0s+collat[1] - utilA0 <0)!=0)
+
+validp0 = seq(P0s[p0boundsind[1]], P0s[p0boundsind[2]], length.out = 999)
+validp0s[[i]] = validp0
+sucrates[[i]] = Vectorize(sucrate_col)(validp0)
+}
+
+# for (x in validp0){
+#   print(sucrate_col(x))
+#   print(x)
+# }
+
+par(mar = c(2,2,0,0), oma = c(1,1,0,0), mgp = c(1, 0, 0), cex.axis=.9, cex = 1.7, tck = -0.01)
+
+plot(c(0,max(P0s)),c(0,max(P0s))+ collat[1],type = 'l', 
+       xlab = 'Swap price P0', ylab = "Alice's utility at t1")
+
+# abline(h = collat[1], col = 'orange')
+ltys = c(2,1,3)
+for (i in 1:3){
+lines(P0s, utilA0s[[i]], col = 'chartreuse3', lty = ltys[i])
+points(validp0s[[i]] %>% range, validp0s[[i]] %>% range + collat[1], col = c('red','blue'), pch = '.', cex = 5)
+}
+
+abline(v = pt1, lty =2)
+text(x=pt1, y = 0, 'Price at t1')
+
+legend('topleft', lty = ltys, 
+         col = c('chartreuse3'), 
+         legend = sigmas,
+       title = "sigma")
+
+
+plot(NULL, xlim = c(0,max(P0s)),ylim = c(0,1),
+       xlab = 'Swap price P0', ylab = "Success rate")
+
+# sigmas = c(0.06, 0.1, 0.14)
+ltys = c(2,1,3)
+
+for (i in 1:3){
+lines(validp0s[[i]], sucrates[[i]], col = 'chartreuse3', lty = ltys[i])
+}
+
+legend('topleft', lty = ltys, 
+         col = c('chartreuse3'), 
+         legend = sigmas,
+       title = "sigma")
+}
+```
+
 ```{r tauas, include=F, eval = F}
 sigma = 0.1
 
@@ -457,11 +825,11 @@ legend('topleft', lty = ltys,
        title = "tau_b")
 ```
 
-```{r sigmas, include=F, eval = T}
+```{r sigmas, include=F, eval = F}
 taua = 3
 taub = 4
 
-sigmas = c(0.06, 0.1, 0.14)
+sigmas = c(0.06, 0.9, 0.12)
 
 utilA0s = list()
 validp0s = list()
@@ -503,7 +871,7 @@ legend('topleft', lty = ltys,
 plot(NULL, xlim = c(0,max(P0s)),ylim = c(0,1),
        xlab = 'Swap price P0', ylab = "Success rate")
 
-sigmas = c(0.06, 0.1, 0.14)
+# sigmas = c(0.06, 0.1, 0.14)
 ltys = c(2,1,3)
 
 for (i in 1:3){
@@ -515,7 +883,6 @@ legend('topleft', lty = ltys,
          legend = sigmas,
        title = "sigma")
 ```
-
 
 ```{r alphas, include=F, eval=F}
 sigma = 0.1
@@ -546,7 +913,6 @@ legend('topleft', lty = ltys,
          legend = a1s,
        title = "Alice's alpha")
 ```
-
 
 ```{r rs, include=F, eval=F}
 alphas[1] = 0.2

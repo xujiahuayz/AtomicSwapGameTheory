@@ -1,0 +1,801 @@
+---
+title: "Plots"
+output:
+  pdf_document:
+    keep_tex: yes
+  html_document: default
+  html_notebook: default
+---
+
+```{r setup, include = F}
+library(tikzDevice)
+library(magrittr)
+library(knitr)
+library(data.table)
+library(ggplot2)
+library(shiny)
+library(shinythemes)
+library(dplyr)
+library(readr)
+library(mvtnorm)
+library(VGAM)
+library(rootSolve)
+library(plotly)
+library(parallel)
+
+opts_chunk$set(dev = 'tikz', 
+               fig.path = './figure/', 
+               echo = F, error = F, cache = F, message = F, warning = F,
+               eval = F,
+               # results='hide', 
+               autodep = T,
+               fig.height = 6)
+
+options(stringsAsFactors = F
+        # ,
+        # tikzMetricPackages = c(
+        #   "\\usepackage{amssymb, amsmath, mathrsfs, amsfonts, mathtools, amsthm}"
+        #   )
+        )
+
+par(mar = c(0.5,0.5,0,0), oma = c(1,1,1,0), mgp = c(0.5, 0, 0), cex.axis = .9, cex = 2)
+
+ncore = detectCores()
+```
+
+```{r functions, include = F, eval = T}
+source('functions.R')
+
+source('DefaultValues.R')
+```
+
+```{r util3_A_plot, include = T, eval = T}
+for(Pstar in Pstar_vals){
+  par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.2, 0.2, 0), 
+      cex.axis=1, cex = 3, tck = -0.02, 
+      bty = 'l',
+      font.main = 1)
+
+  P3_lower_v = P3_lower(Pstar, alphas[1])
+  
+  pt3vs1 = seq(axis_lim[1],P3_lower_v,length.out = 200)
+  pt3vs2 = seq(P3_lower_v, axis_lim[2],length.out = 200)
+  
+  pt3vs = c(pt3vs1, pt3vs2)
+  
+  plot(pt3vs, util3_A_cont(pt3vs), type = 'l',
+       xlim = axis_lim,
+       ylim = axis_lim,
+       xlab = 'Token$_b$ price at $t_3$, $P_{t_3}$', ylab = "Alice's utility at $t_3$, $U_{t_3}^\\mathcal{A}$", 
+       col = col_cont)
+  
+  title(main = paste('$P_* =', Pstar, '$'), line = -0.7, cex = 1)
+  
+  util3_A_stop_v = util3_A_stop(Pstar)
+  
+  lines(pt3vs, rep(util3_A_stop_v, length(pt3vs)))
+  
+  points(P3_lower_v, util3_A_stop_v, pch = '.', col = 'red', cex = 5)
+
+}
+
+legend('right', 
+       pch = '.',
+       bty = 'n',
+       pt.cex = 5,
+       col = 'red', 
+       legend = '$\\underline{P_{t_3}}$'
+       )
+
+legend('bottomright', lty = 1, 
+       seg.len = 0.5,
+       bty = 'n',
+       col = c(col_cont, 'black'), 
+       legend = c(
+         '$U_{t_3}^\\mathcal{A}(\\mathit{cont})$', 
+         '$U_{t_3}^\\mathcal{A}(\\mathit{stop})$'
+         )
+       )
+```
+
+```{r util2_B_plot, include = T, eval = F}
+for(Pstar in Pstar_vals){
+  par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.2, 0.2, 0), 
+      cex.axis=1, cex = 3, tck = -0.02, 
+      bty = 'l',
+      font.main = 1)
+  
+  pt2vs = seq(1e-10,axis_lim[2],length.out = 200)
+  
+  util3_B_stop_v = util3_B_stop(pt2vs)
+  util3_B_cont_v = sapply(pt2vs, function(x) util2_B_cont(x, Pstar))
+  
+  pt2threshsv = which(diff(util3_B_stop_v > util3_B_cont_v) !=0) # sign switch in the graph
+  
+  plot(pt2vs, util3_B_stop(pt2vs), type = 'l',
+       xlim = axis_lim,
+       ylim = axis_lim, 
+       xlab = 'Token$_b$ price at $t_2$, $P_{t_2}$', ylab = "Bob's utility at $t_2$, $U_{t_2}^\\mathcal{B}$")
+  lines(pt2vs, sapply(pt2vs, function(x) util2_B_cont(x, Pstar)), col = col_cont)
+  
+  points(
+  c(mean(pt2vs[pt2threshsv[1]+(0:1)]), mean(pt2vs[pt2threshsv[2]+(0:1)])),
+  c(mean(util3_B_stop_v[pt2threshsv[1]+(0:1)]), mean(util3_B_stop_v[pt2threshsv[2]+(0:1)])),
+  col = c('red','blue'), pch = '.', cex = 5
+  )
+  
+  
+  title(main = paste('$P_* =', Pstar, '$'), line = -0.75, cex = 1)
+}
+
+  legend('right', 
+         pch = '.',
+         pt.cex = 5,
+         col = c('blue','red'), 
+         bty = 'n',
+         legend = c('$\\overline{P_{t_2}}$', '$\\underline{P_{t_2}}$')
+         )
+  
+  legend('bottomright', lty = 1,
+         col = c(col_cont, 'black'),
+         bty = 'n',
+         seg.len = 0.5,
+         legend = c(
+           '$U_{t_2}^\\mathcal{B}(\\mathit{cont})$',
+           '$U_{t_2}^\\mathcal{B}(\\mathit{stop})$'))
+```
+
+```{r util1_A_plot, include = T, eval = F}
+
+# util1_A_cont_v = Vectorize(util1_A_cont)(Pstars)
+
+# save(util1_A_cont_v, file = 'data/util1_A_cont_v.rda')
+load('data/util1_A_cont_v.rda')
+
+util1_A_stop_v = util1_A_stop(Pstars)
+
+  par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.2, 0.2, 0), 
+      cex.axis=1, cex = 3, tck = -0.02, 
+      bty = 'l',
+      font.main = 1)
+
+plot(Pstars, util1_A_stop_v, type = 'l',
+     xlim = axis_lim,
+     ylim = axis_lim,
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Alice's utility at $t_1$, $U_{t_1}^\\mathcal{A}$")
+lines(Pstars, util1_A_cont_v, col = col_cont)
+
+p0boundsind = which(diff(Pstars < util1_A_cont_v)!=0)
+
+points(
+  c(mean(Pstars[p0boundsind[1]+(0:1)]), mean(Pstars[p0boundsind[2]+(0:1)])),
+  c(mean(util1_A_stop_v[p0boundsind[1]+(0:1)]), mean(util1_A_stop_v[p0boundsind[2]+(0:1)])),
+  col = c('red','blue'), pch = '.', cex = 5
+  )
+
+legend('right', 
+         pch = '.',
+         pt.cex = 5,
+         col = c('blue','red'), 
+         bty = 'n',
+         legend = c('$\\overline{P_*}$', '$\\underline{P_*}$')
+         )
+
+legend('bottomright', lty = 1, 
+       seg.len = 0.5,
+       bty = 'n',
+       col = c(col_cont, 'black'), 
+       legend = c(
+         '$U_{t_1}^\\mathcal{A}(\\mathit{cont})$', 
+         '$U_{t_1}^\\mathcal{A}(\\mathit{stop})$'
+         )
+       )
+```
+
+```{r success_val, include = T, eval = T}
+# sucrate_v = mclapply(Pstars, sucrate) %>% unlist
+# save(sucrate_v, file = 'data/sucrate_v.rda')
+load('data/sucrate_v.rda')
+```
+
+```{r success_plot_alphaA, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+alphaAs = c(0.1,0.2, alphas[1],0.4)
+
+# alphas[1] = alphaAs[2]
+# sucrate_v_alphaA_1 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# alphas[1] = alphaAs[1]
+# sucrate_v_alphaA_2 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# alphas[1] = alphaAs[4]
+# sucrate_v_alphaA_3 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# save(sucrate_v_alphaA_1, sucrate_v_alphaA_2, sucrate_v_alphaA_3, 
+#      file = 'data/sucrate_v_alphaA.rda')
+load('data/sucrate_v_alphaA.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_alphaA_1, col = col_success[1], lty = 2, lwd = lwd_success)
+# lines(Pstars, sucrate_v_alphaA_2, col = 'red') #only NAs
+lines(Pstars, sucrate_v_alphaA_3, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = alphaAs,
+       col = c('grey', col_success),
+       lty = c(NA, 2,1,3),
+       pch = c(0, NA, NA, NA),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\alpha^{\\mathcal{A}}$'
+)
+```
+
+```{r success_plot_alphaB, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+alphaBs = c(0.1,0.2, alphas[2],0.4)
+
+# alphas[2] = alphaBs[2]
+# sucrate_v_alphaB_1 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# alphas[2] = alphaBs[1]
+# sucrate_v_alphaB_2 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# alphas[2] = alphaBs[4]
+# sucrate_v_alphaB_3 = mclapply(Pstars, sucrate) %>% unlist
+# 
+# save(sucrate_v_alphaB_1, sucrate_v_alphaB_2, sucrate_v_alphaB_3,
+#      file = 'data/sucrate_v_alphaB.rda')
+load('data/sucrate_v_alphaB.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_alphaB_1, col = col_success[1], lty = 2, lwd = lwd_success)
+# lines(Pstars, sucrate_v_alphaA_2, col = 'red') #only NAs
+lines(Pstars, sucrate_v_alphaB_3, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = alphaBs,
+       col = c('grey', col_success),
+       lty = c(NA, 2,1,3),
+       pch = c(0, NA, NA, NA),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\alpha^{\\mathcal{B}}$'
+)
+```
+
+```{r success_plot_rA, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+rAs = c(0.005, rs[1], 0.015, 0.02)
+
+# rs[1] = rAs[1]
+# sucrate_v_rA_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# rs[1] = rAs[3]
+# sucrate_v_rA_2 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# rs[1] = rAs[4]
+# sucrate_v_rA_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# save(sucrate_v_rA_1, sucrate_v_rA_2, sucrate_v_rA_3,
+#      file = 'data/sucrate_v_rA.rda')
+load('data/sucrate_v_rA.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_rA_1, col = col_success[1], lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_rA_2, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = rAs,
+       col = c(col_success, 'grey'),
+       lty = c(2,1,3, NA),
+       pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$r^{\\mathcal{A}}$'
+)
+```
+
+```{r success_plot_rB, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+rBs = c(0.005, rs[2], 0.02, 0.03)
+
+# rs[2] = rBs[1]
+# sucrate_v_rB_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# rs[2] = rBs[3]
+# sucrate_v_rB_2 = sucrate_v_rB_3 mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# rs[2] = rBs[4]
+# sucrate_v_rB_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+
+# save(sucrate_v_rB_1, sucrate_v_rB_2, sucrate_v_rB_3,
+#      file = 'data/sucrate_v_rB.rda')
+load('data/sucrate_v_rB.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_rB_1, col = col_success[1], lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_rB_2, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = rBs,
+       col = c(col_success, 'grey'),
+       lty = c(2,1,3, NA),
+       pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$r^{\\mathcal{B}}$'
+)
+```
+
+```{r success_plot_taua, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+tauas = c(1, taua, 5, 7)
+# 
+# taua = tauas[1]
+# sucrate_v_taua_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# taua = tauas[3]
+# sucrate_v_taua_2 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# taua = tauas[4]
+# sucrate_v_taua_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# save(sucrate_v_taua_1, sucrate_v_taua_2, sucrate_v_taua_3,
+#      file = 'data/sucrate_v_taua.rda')
+load('data/sucrate_v_taua.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_taua_1, col = col_success[1], lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_taua_2, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = tauas,
+       col = c(col_success, 'grey'),
+       lty = c(2,1,3, NA),
+       pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\tau_a$'
+)
+```
+
+```{r success_plot_taub, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+taubs = c(2, taub, 6, 8)
+
+# taub = taubs[1]
+# sucrate_v_taub_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# taub = taubs[3]
+# sucrate_v_taub_2 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# taub = taubs[4]
+# sucrate_v_taub_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+
+# save(sucrate_v_taub_1, sucrate_v_taub_2, sucrate_v_taub_3,
+#      file = 'data/sucrate_v_taub.rda')
+load('data/sucrate_v_taub.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_taub_1, col = col_success[1], lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_taub_2, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = taubs,
+       col = c(col_success, 'grey'),
+       lty = c(2,1,3, NA),
+       pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\tau_b$'
+)
+```
+
+```{r success_plot_sigma, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+sigmas = c(0.05, sigma, 0.15, 0.2)
+
+# sigma = sigmas[1]
+# sucrate_v_sigma_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+
+# sigma = sigmas[3]
+# sucrate_v_sigma_2 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# sigma = sigmas[4]
+# sucrate_v_sigma_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+
+# save(sucrate_v_sigma_1, sucrate_v_sigma_2, sucrate_v_sigma_3,
+#      file = 'data/sucrate_v_sigma.rda')
+load('data/sucrate_v_sigma.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_sigma_1, col = col_success[1], lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_sigma_2, col = col_success[3], lty = 3, lwd = lwd_success)
+
+legend('topleft',
+       legend = sigmas,
+       col = c(col_success, 'grey'),
+       lty = c(2,1,3, NA),
+       pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\sigma$'
+)
+```
+
+```{r success_plot_mu, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+mus = c(-0.002, 0, mu, 0.004)
+
+# mu = mus[1]
+# sucrate_v_mu_1 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# mu = mus[2]
+# sucrate_v_mu_2 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+# 
+# mu = mus[4]
+# sucrate_v_mu_3 = mclapply(Pstars, sucrate, mc.cores = ncore) %>% unlist
+
+# save(sucrate_v_mu_1, sucrate_v_mu_2, sucrate_v_mu_3,
+#      file = 'data/sucrate_v_mu.rda')
+load('data/sucrate_v_mu.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(Pstars, sucrate_v_mu_1, col = 'yellow', lty = 2, lwd = lwd_success)
+lines(Pstars, sucrate_v_mu_2, col = col_success[1], lty = 3, lwd = lwd_success)
+lines(Pstars, sucrate_v_mu_3, col = col_success[3], lty = 4, lwd = lwd_success)
+
+legend('topleft',
+       legend = mus,
+       col = c('yellow', col_success),
+       lty = c(4, 2,1,3),
+       # pch = c(NA, NA, NA, 0),
+       lwd = lwd_success,
+       bty = 'n',
+       title = '$\\mu$'
+)
+```
+
+```{r alphalower, include = T, eval = F}
+
+alphaAls = rep(NA, datanumber)
+
+for (i in 4:datanumber){
+  try(
+    alphaAls[i] <- alphal(PstarAls[i])$root, silent = T
+  )
+}
+
+save(alphaAls, file = "data/alphaAls.rda")
+
+load('data/alphaAls.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+alphaAls[is.na(alphaAls)] = 0.01 
+plot(PstarAls, alphaAls, type = 'l', 
+     xlim = axis_lim,
+     lwd = 5,
+     # pch = 4, cex =0.2, 
+     xlab='Exchange rate $P_*$', 
+     ylab = "$\\alpha^\\mathcal{A}$'s lower bound, $\\alpha_l^\\mathcal{A}$")
+# abline(v = pt1, lty =2)
+# text(x=pt1, y =0, 'Price at t1')
+
+abline(h = alphas[1])
+```
+
+```{r success_unc, include = T, eval = F}
+# reset everything
+load('data/alphaAls.rda')
+alphaAls[is.na(alphaAls)] = 0.01 
+ind = which(alphas[1] > alphaAls)
+
+sucrate_unc_foo = function(i){
+  sucrate_unc(Pstar = PstarAls[i], alpha_lower = alphaAls[i])
+}
+
+# sucrate_v_unc_alpha = mclapply(ind, sucrate_unc_foo) %>% unlist
+# 
+# save(sucrate_v_unc_alpha, file = 'data/sucrate_v_unc_alpha.rda')
+load('data/sucrate_v_unc_alpha.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(PstarAls[ind], sucrate_v_unc_alpha, col = col_success[3], type = 'l',
+     lty = 2,
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05), 
+     lwd = lwd_success)
+lines(Pstars[is.finite(sucrate_v)], sucrate_v[is.finite(sucrate_v)],
+     col = col_success[2],
+     lwd = lwd_success)
+
+points(Pstars[is.finite(sucrate_v)][5], sucrate_v[is.finite(sucrate_v)][5],cex = 3)
+# legend('topleft',
+#        legend = alphaAs,
+#        col = c('grey', col_success),
+#        lty = c(NA, 2,1,3),
+#        pch = c(0, NA, NA, NA),
+#        lwd = lwd_success,
+#        bty = 'n',
+#        title = '$\\alpha^{\\mathcal{A}}$'
+# )
+```
+
+```{r util2_B_plot_col, include = T, eval = T}
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.2, 0.2, 0), 
+      cex.axis=1, cex = 3, tck = -0.02, 
+      bty = 'l',
+      font.main = 1)
+
+axis_lim = c(1e-10,3.3)
+
+for(Q in Qs){
+
+for(Pstar in Pstar_vals){
+  
+  pt2vs = seq(1e-10,axis_lim[2],length.out = 200)
+  
+  util3_B_stop_v = util3_B_stop(pt2vs)
+  util3_B_cont_v = sapply(pt2vs, function(x) util2_B_cont_col(x, Pstar, colla = Q))
+  
+  pt2threshsv = which(diff(util3_B_stop_v > util3_B_cont_v) !=0) # sign switch in the graph
+  
+  plot(pt2vs, util3_B_stop_v, type = 'l',
+       xlim = axis_lim,
+       ylim = axis_lim, 
+       xlab = 'Token$_b$ price at $t_2$, $P_{t_2}$', ylab = "Bob's utility at $t_2$, $U_{t_2}^\\mathcal{B}$")
+  lines(pt2vs, util3_B_cont_v, col = col_cont)
+  
+  points(sapply(pt2threshsv, function(x) mean(pt2vs[x+(0:1)])),
+         sapply(pt2threshsv, function(x) mean(util3_B_stop_v[x+(0:1)])),
+  col = c('black'), pch = '.', cex = 5
+  )
+  
+  
+  title(main = paste('$P_* =', Pstar, '$'), line = -0.75, cex = 1)
+}
+
+  
+  legend('bottomright', lty = 1,
+         col = c(col_cont, 'black'),
+         bty = 'n',
+         seg.len = 0.5,
+         legend = c(
+           '$U_{t_2,\\mathrm{c}}^\\mathcal{B}(\\mathit{cont})$',
+           '$U_{t_2}^\\mathcal{B}(\\mathit{stop})$'))
+  
+}
+```
+
+```{r util1_plot_col, include = T, eval = F}
+# util1_A_cont_v_col1 = Vectorize(function(x) util1_A_cont_col(x, pt1 = P1, alphaA = alphas[1], alphaB = alphas[2], colla = Qs[1]))(Pstars)
+# util1_A_cont_v_col2 = Vectorize(function(x) util1_A_cont_col(x, pt1 = P1, alphaA = alphas[1], alphaB = alphas[2], colla = Qs[2]))(Pstars)
+# 
+# save(util1_A_cont_v_col1, util1_A_cont_v_col2, file = 'data/util1_A_cont_v_col.rda')
+# 
+# util1_B_cont_v_col1 = Vectorize(function(x) util1_B_cont_col(x, pt1 = P1, alphaB = alphas[2], colla = Qs[1]))(Pstars)
+# util1_B_cont_v_col2 = Vectorize(function(x) util1_B_cont_col(x, pt1 = P1, alphaB = alphas[2], colla = Qs[2]))(Pstars)
+# save(util1_B_cont_v_col1, util1_B_cont_v_col2, file = 'data/util1_B_cont_v_col.rda')
+
+load('data/util1_A_cont_v_col.rda')
+load('data/util1_B_cont_v_col.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+for (i in 1:2){
+Q = Qs[i]
+
+util1_A_stop_v = util1_A_stop(Pstars) + Q
+util1_B_stop_v = util1_B_stop(rep(P1, length(Pstars))) + Q
+
+util1_A_cont_v = get(paste0('util1_A_cont_v_col',i))
+util1_B_cont_v = get(paste0('util1_B_cont_v_col',i))
+
+plot(Pstars, util1_A_stop_v, type = 'l', lwd = 5,
+     xlim = axis_lim,
+     ylim = axis_lim,
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Alice's utility at $t_1$, $U_{t_1}^\\mathcal{A}$")
+lines(Pstars, util1_A_cont_v, col = col_cont, lwd = 5)
+
+p0boundsind = which(diff(util1_A_stop_v < util1_A_cont_v)!=0) # %>% .[length(.)-(1:0)] #take the last two
+
+points(
+  sapply(p0boundsind, function(x) mean(Pstars[x+(0:1)])),
+  sapply(p0boundsind, function(x) mean(util1_A_stop_v[x+(0:1)])),
+  pch = '.', cex = 5
+  # col = c('red','blue'), pch = 15, cex = 1
+  )
+
+lines(Pstars, util1_B_cont_v, col = col_cont, lty = 2, lwd = 5)
+lines(Pstars, util1_B_stop_v, lty = 2, lwd = 5)
+
+p0boundsindB = which(diff(util1_B_stop_v < util1_B_cont_v)!=0)
+
+if(length(p0boundsindB)>0){
+  points(
+  c(mean(Pstars[p0boundsindB[1]+(0:1)]), mean(Pstars[p0boundsindB[2]+(0:1)])),
+  c(mean(util1_B_stop_v[p0boundsindB[1]+(0:1)]), mean(util1_B_stop_v[p0boundsindB[2]+(0:1)])),
+  pch = '.', cex = 5 
+  # pch = 0, cex = 1, col = 'red'
+  )
+}
+
+legend('bottomright', lty = ifelse(i==1,1,2),
+       lwd = 5,
+       seg.len = 1,
+       bty = 'n',
+       col = c(col_cont, 'black'),
+       legend = paste0(
+         '$U_{t_1,\\mathrm{c}}^\\mathcal{', ifelse(i==1,'A','B'),
+         c('}(\\mathit{cont})$', '}(\\mathit{stop})$')
+       )
+       )
+
+assign(paste0('feasible_Pstar',i), Pstars[which(util1_A_stop_v < util1_A_cont_v  & util1_B_stop_v < util1_B_cont_v)])
+}
+
+# legend('topleft', lty = 2,
+#        lwd = 5,
+#        seg.len = 1,
+#        bty = 'n',
+#        col = c(col_cont, 'black'),
+#        legend = c(
+#          '$U_{t_1,\\mathrm{c}}^\\mathcal{B}(\\mathit{cont})$',
+#          '$U_{t_1,\\mathrm{c}}^\\mathcal{B}(\\mathit{stop})$'
+#          )
+#        )
+
+
+save(feasible_Pstar1, feasible_Pstar2, file = 'data/feasible_Pstar.rda')
+```
+
+```{r success_plot_col, include = T, eval = F}
+# reset everything
+source('DefaultValues.R')
+
+load('data/feasible_Pstar.rda')
+
+# sucrate_v_col1 = mclapply(feasible_Pstar1, function(x) sucrate(x, alphaA = alphas[1], alphaB = alphas[2], colla = Qs[1])) %>% unlist
+# sucrate_v_col2 = mclapply(feasible_Pstar2, function(x) sucrate(x, alphaA = alphas[1], alphaB = alphas[2], colla = Qs[2])) %>% unlist
+# 
+# save(sucrate_v_col1, sucrate_v_col2, file = 'data/sucrate_v_col.rda')
+
+load('data/sucrate_v.rda')
+load('data/sucrate_v_col.rda')
+
+par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
+    cex.axis=1, cex = 2.7, tck = -0.02, 
+    bty = 'l',
+    font.main = 1)
+
+plot(Pstars,sucrate_v,type = 'l', 
+     xlab = 'Exchange rate $P_*$',
+     ylab = "Success rate $\\mathit{SR}$",
+     xlim = axis_lim,
+     ylim = c(0,1.05),
+     col = col_success[2], lwd = lwd_success)
+lines(feasible_Pstar1, sucrate_v_col1, col = col_success[3], lty = 3, lwd = lwd_success)
+lines(feasible_Pstar2, sucrate_v_col2, col = col_success[1], lty = 2, lwd = lwd_success)
+
+legend('topleft',
+       legend = c('0 (basic setup)', Qs),
+       col = col_success[c(2,3,1)],
+       lty = c(1,3,2),
+       lwd = lwd_success,
+       bty = 'n',
+       title = 'Collateral $Q$'
+)
+```
+
