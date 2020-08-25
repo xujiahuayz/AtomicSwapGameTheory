@@ -87,9 +87,9 @@ Section 2
 
 
 These are questions for authors. 
-1. How do you choose the default value of parameters in Table 3? How do you choose the time scale in the model? Because these values seriously influence the final results.
-2. The success rate is highly related to the token price function, have you considered using some real market data to simulate the model?
-3. The results seem intuitive. Do you have any more exciting findings other than this?
+- [x] 1. How do you choose the default value of parameters in Table 3? How do you choose the time scale in the model? Because these values seriously influence the final results.
+- [x] 2. The success rate is highly related to the token price function, have you considered using some real market data to simulate the model? *Disucssed in Conclusion*
+- [ ] 3. The results seem intuitive. Do you have any more exciting findings other than this?
 
 
 
@@ -121,9 +121,9 @@ Comments for author
 Major Comments
 The paper does not give a clear picture of the time scale of atomic swaps. 
 
-- [ ] If the deadlines TA and TB are in the order of days or even hours, I can imagine that variations in asset pricing might create incentives for aborting; however, if TA and TB are in the order of a few second or minutes I don't feel the paper is modeling a relevant phenomenon. The paper could give more justification by giving examples of the atomic swaps and real values for TA and TB.
+- [x] If the deadlines TA and TB are in the order of days or even hours, I can imagine that variations in asset pricing might create incentives for aborting; however, if TA and TB are in the order of a few second or minutes I don't feel the paper is modeling a relevant phenomenon. The paper could give more justification by giving examples of the atomic swaps and real values for TA and TB.
 
-- [ ] I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. 
+- [x] I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. *explained inflationary / deflationary coin*
 
 The paper is also assuming a deterministic discount rate of the assets (which again depends on the time scale of TA and TB). So looks like the Claims that Alice would want to abort the swap are just driven by an obvious observation because if you consider the infinite horizon Alice would never start the exchange in the first place. In fact, under positive drift even with collaterals, with high probability Alice will always abort given enough time TA.
 
