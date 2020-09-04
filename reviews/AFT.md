@@ -147,7 +147,7 @@ The paper is also assuming a deterministic discount rate of the assets (which ag
 
 *We explained inflationary and deflationary features of tokens that can cause drift unequal to 0.*
 
-- [x] The paper could still be interesting assuming no drift when TA and TB have large timescale but it chose to be overly complicated without giving clear reasons for the complicated model.
+- [x] The paper could still be interesting assuming no drift when TA and TB have large timescale but it chose to be overly complicity without giving clear reasons for the complicated model.
 
 *No drift scenario is discussed in Section III.F. We believe a certain level of complication makes the model more realistic, convincing and generalizable.*
 
