@@ -1,3 +1,9 @@
+Revision summary
+===========================================================================
+
+We thank AFT reviewers for their constructive suggestions. We revised our paper thoroughly based on their comments. Sepcific changes addressing each comment is described below in *italic*.
+
+
 AFT 2020 Paper #9 Reviews and Comments
 ===========================================================================
 Paper #9 A Game-Theoretic Analysis of Cross-Ledger Atomic Swap Protocols
@@ -62,7 +68,10 @@ However, it is not clear how this paper contributes to the area because of follo
 
 Furthermore, the presentation can be improved as well.
 
-- [ ] Ethers *JX: what's that?*
+- [ ] Ethers 
+
+*We are not sure what this refers to.*
+
 - [x] Decide not [to] follow.
 - [x] First, it will be better to use consistent presentation of set-up or setup, one-time or onetime
 
@@ -85,13 +94,20 @@ Section 2
 - [x] aiming to achieving atomicity -> aiming to achieve atomicity
 ...
 
+*We thoroughly proofread the paper and corrected typos.*
 
 These are questions for authors. 
 - [x] 1. How do you choose the default value of parameters in Table 3? How do you choose the time scale in the model? Because these values seriously influence the final results.
-- [x] 2. The success rate is highly related to the token price function, have you considered using some real market data to simulate the model? *Disucssed in Conclusion*
-- [ ] 3. The results seem intuitive. Do you have any more exciting findings other than this?
 
+*We add a new section to discuss the legitimacy of our parameter choice.*
 
+- [x] 2. The success rate is highly related to the token price function, have you considered using some real market data to simulate the model?
+
+*We disucssed this in conclusion.*
+
+- [x] 3. The results seem intuitive. Do you have any more exciting findings other than this?
+
+*We disucssed this in conclusion.*
 
 Review #9C
 ===========================================================================
@@ -123,18 +139,29 @@ The paper does not give a clear picture of the time scale of atomic swaps.
 
 - [x] If the deadlines TA and TB are in the order of days or even hours, I can imagine that variations in asset pricing might create incentives for aborting; however, if TA and TB are in the order of a few second or minutes I don't feel the paper is modeling a relevant phenomenon. The paper could give more justification by giving examples of the atomic swaps and real values for TA and TB.
 
-- [x] I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. *explained inflationary / deflationary coin*
+*We add a new section to discuss the legitimacy of our parameter choice and specified the time unit.*
+
+- [x] I felt the model had little justification. In particular, by assuming a positive drift \mu implies that Alice would never want to exchange asset A for asset B since P(t) goes to infinite (with probability 1). The paper gets away with that by assuming that Alice only cares about p(t) until TA, but no justification is given. 
 
 The paper is also assuming a deterministic discount rate of the assets (which again depends on the time scale of TA and TB). So looks like the Claims that Alice would want to abort the swap are just driven by an obvious observation because if you consider the infinite horizon Alice would never start the exchange in the first place. In fact, under positive drift even with collaterals, with high probability Alice will always abort given enough time TA.
 
-The paper could still be interesting assuming no drift when TA and TB have large timescale but it chose to be overly complicated without giving clear reasons for the complicated model.
+*We explained inflationary and deflationary features of tokens that can cause drift unequal to 0.*
+
+- [x] The paper could still be interesting assuming no drift when TA and TB have large timescale but it chose to be overly complicated without giving clear reasons for the complicated model.
+
+*No drift scenario is discussed in Section III.F. We believe a certain level of complication makes the model more realistic, convincing and generalizable.*
 
 Minor Comments
 
-- [x] Abstract: key-words separated by a semi-colon *JX: does not apply to SP template*
-- [ ] In the related work section, you mention that a downside of relays, sidechains, etc… require contracts. But aren't HTLCs contracts too? *AD & DA?*
-- [ ] You mention a discussion in a blog that says that 5% of transactions fail. You might want to add a reference to that discussion. *AD & DA?*
+- [x] Abstract: key-words separated by a semi-colon 
 
+*This does not apply to SP template*
+
+- [ ] In the related work section, you mention that a downside of relays, sidechains, etc… require contracts. But aren't HTLCs contracts too? *AD & DA?*
+
+- [x] You mention a discussion in a blog that says that 5% of transactions fail. You might want to add a reference to that discussion. *AD & DA?*
+
+*We explained that it was a message exange on Slack. This is private communication and according to standard citation rules we do not include this in bibliography.*
 
 
 Review #9D
