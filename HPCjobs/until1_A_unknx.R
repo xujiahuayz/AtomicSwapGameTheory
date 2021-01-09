@@ -1,9 +1,9 @@
 library(magrittr)
 library(data.table)
 library(dplyr)
-# library(readr)
-# library(mvtnorm)
-# library(VGAM)
+library(readr)
+library(mvtnorm)
+library(VGAM)
 library(rootSolve)
 
 

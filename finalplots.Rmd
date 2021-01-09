@@ -12,15 +12,13 @@ library(tikzDevice)
 library(magrittr)
 library(knitr)
 library(data.table)
-library(shiny)
-library(shinythemes)
 library(dplyr)
-library(readr)
-library(mvtnorm)
-library(VGAM)
+# library(readr)
+# library(mvtnorm)
+library(VGAM) # for erfc
 library(rootSolve)
 library(plotly)
-library(parallel)
+# library(parallel)
 
 opts_chunk$set(dev = 'tikz', 
                fig.path = './Overleaf/figures/', 
