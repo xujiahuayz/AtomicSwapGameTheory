@@ -1,4 +1,3 @@
-
 #!/bin/bash -l
 
 #SBATCH --chdir /scratch/jxu
