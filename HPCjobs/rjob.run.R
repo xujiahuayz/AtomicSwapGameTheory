@@ -1,0 +1,22 @@
+
+#!/bin/bash -l
+
+#SBATCH --chdir /scratch/jxu
+#SBATCH --nodes 1
+#SBATCH --ntasks 1
+
+### max=28
+#SBATCH --cpus-per-task 10
+
+### max=199G
+#SBATCH --mem 120G
+#SBATCH --time 04:30:00
+
+echo STARTING at `date`
+
+module purge
+module load intel intel-mkl
+module load r curl
+srun R CMD BATCH /home/jxu/AtomicSwapGameTheory/RegressionsR/HPCjobs/LifetimeRegIndividualEffect_job.R
+
+echo FINISHED at `date`
