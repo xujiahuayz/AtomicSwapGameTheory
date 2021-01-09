@@ -174,6 +174,81 @@ sucrate = function(Pstar){
   }
   }
 
+## uncertain exchange ----
+P3_lower_unknx = function(actual_X, Pstar, alphaA = alphas[1]) {
+  P3_lower(Pstar, alphaA = alphaA) / actual_X
+}
+
+
+util2_A_unknx = function(actual_X, pt2, Pstar, alphaA = alphas[1]){
+  pt3threshv = P3_lower_unknx(actual_X, Pstar, alphaA)
+  Time = taub # time until next step
+  
+  temp = function(pt3){
+    gbmpdf(pt3, pt2, Time) * util3_A_cont(pt3, alphaA)
+  }
+  util3_A = integrate(Vectorize(temp), pt3threshv, 5*pt2, abs.tol = 0)$value * actual_X + 
+    gbmcdf(pt3threshv, pt2, Time) * util3_A_stop(Pstar)
+  
+  util3_A/exp(rs[1]*Time)
+}
+
+util2_B_unknx = function(actual_X, pt2, Pstar, alphaA = alphas[1], alphaB = alphas[2]){
+  pt3threshv = P3_lower_unknx(actual_X, Pstar, alphaA)
+  Time = taub # time until next step
+  
+  temp = function(pt3){
+    gbmpdf(pt3, pt2, Time) * util3_B_stop(pt3)
+  }
+  util3_B = (1-gbmcdf(pt3threshv, pt2, Time)) * util3_B_cont(Pstar, alphaB) + 
+    integrate(Vectorize(temp), 0, pt3threshv
+              # , abs.tol = 0
+    )$value * actual_X
+  
+  util3_B/exp(rs[2]*Time) - actual_X * pt2
+}
+
+X_opt = function(pt2, alphaA = alphas[1], Pstar){
+  X_cand = seq(0,3*pt2,length.out = 250)
+  util3_B_cand = Vectorize(util2_B_unknx)(X_cand, pt2, Pstar)
+  X_cand[which.max(util3_B_cand)]
+}
+
+
+util1_A_unknx = function(Pstar, pt1 = P1, alphaA = alphas[1], alphaB = alphas[2]){
+
+  Time = taua # time until next step
+  
+  pt2_array = seq(0,3*pt1,length.out = 200)
+  
+  x_try = pt1
+  x_plus = 2 * pt1
+  x_null = 0
+
+    while (abs(x_plus - x_null) > 0.000001) {
+      if(X_opt(x_try, alphaA, Pstar)>0){
+        x_plus = x_try
+        x_try = x_try - (x_try - x_null) / 2 
+      } else {
+        x_null = x_try
+        x_try = x_try + (x_plus - x_try) / 2 
+      }
+    }
+  
+  pt2threshv = (x_plus + x_null) / 2
+  
+  temp = function(pt2){
+    gbmpdf(pt2, pt1, Time) * util2_A_unknx(X_opt(pt2, alphaA, Pstar), pt2, Pstar, alphaA)
+  }
+  
+  probBobwaive = gbmcdf(pt2threshv, pt1, Time)
+  util2_A = integrate(Vectorize(temp), pt2threshv, 5*pt1, subdivisions=2000
+                      # , abs.tol = 0
+                      )$value + probBobwaive * util2_A_stop(Pstar)
+  
+  util2_A/exp(rs[1]*Time) - Pstar
+}
+
 
 ## uncertain ----
 ## expected utility for Bob if continue, uncertain about alpha^A, but alpha^A lower bound is known
