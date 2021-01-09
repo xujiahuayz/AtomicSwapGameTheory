@@ -3,7 +3,7 @@ library(data.table)
 library(dplyr)
 # library(readr)
 # library(mvtnorm)
-library(VGAM)
+# library(VGAM)
 library(rootSolve)
 
 
