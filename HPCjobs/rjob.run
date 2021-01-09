@@ -5,10 +5,10 @@
 #SBATCH --ntasks 1
 
 ### max=28
-#SBATCH --cpus-per-task 10
+#SBATCH --cpus-per-task 8
 
 ### max=199G
-#SBATCH --mem 120G
+#SBATCH --mem 50G
 #SBATCH --time 04:30:00
 
 echo STARTING at `date`
@@ -16,6 +16,6 @@ echo STARTING at `date`
 module purge
 module load intel intel-mkl
 module load r curl
-srun R CMD BATCH /home/jxu/AtomicSwapGameTheory/RegressionsR/HPCjobs/until1_A_unknx.R
+srun R CMD BATCH /home/jxu/AtomicSwapGameTheory/HPCjobs/until1_A_unknx.R
 
 echo FINISHED at `date`

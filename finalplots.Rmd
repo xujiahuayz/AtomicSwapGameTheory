@@ -193,7 +193,7 @@ legend('bottomright', lty = 1,
 ```
 
 ```{r util1_A_unknx_plot, include = T, eval = F}
-Pstars = seq(1.3, 2.5, length.out = 50)
+# Pstars = seq(1.3, 2.5, length.out = 50)
 util1_A_unknx_v = Vectorize(util1_A_unknx)(Pstars)
 
 save(util1_A_unknx_v, file = 'data/util1_A_unknx_v.rda')
