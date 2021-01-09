@@ -1,16 +1,11 @@
-library(tikzDevice)
 library(magrittr)
-library(knitr)
 library(data.table)
-library(shiny)
-library(shinythemes)
 library(dplyr)
 library(readr)
 library(mvtnorm)
 library(VGAM)
 library(rootSolve)
-library(plotly)
-library(parallel)
+
 
 filerootpath = '/home/jxu/AtomicSwapGameTheory/'
 
