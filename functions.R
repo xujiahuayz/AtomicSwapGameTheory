@@ -249,25 +249,24 @@ util1_A_unknx = function(Pstar,
   util2_A / exp(rs[1] * Time) - Pstar
 }
 
-# probBobwaive = gbmcdf(pt2threshv, pt1, Time)
 
-# pt2_array = seq(0,3*pt1,length.out = 200)
+## uncertain ex suc ----
+sucrate_unknx = function(Pstar,
+                         alphaA = alphas[1],
+                         alphaB = alphas[2]) {
+  temp = function(pt2) {
+    xopt = X_opt(pt2, alphaA, Pstar)
+    if (xopt == 0) {
+      0
+    } else{
+      gbmpdf(pt2, P1, taua) * (1 - gbmcdf(P3_lower_unknx(xopt, Pstar, alphaA), pt2, taub))
+      
+    }
+  }
+  integrate(Vectorize(temp), 0.001, 30,
+            subdivisions = 2000)
+}
 
-# x_try = pt1
-# x_plus = 2 * pt1
-# x_null = 0
-#
-#   while (abs(x_plus - x_null) > 0.000001) {
-#     if(X_opt(x_try, alphaA, Pstar)>0){
-#       x_plus = x_try
-#       x_try = x_try - (x_try - x_null) / 2
-#     } else {
-#       x_null = x_try
-#       x_try = x_try + (x_plus - x_try) / 2
-#     }
-#   }
-#
-# pt2threshv = (x_plus + x_null) / 2
 
 
 ## uncertain ----

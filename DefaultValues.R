@@ -14,7 +14,7 @@ taueps = 1
 
 P1 = 2 #current price is given, but strike price is to be negotiated
 
-Pstars = seq(0.196,3,length.out = 50)
+Pstars = seq(0.196, 3, length.out = 50)
 
 Pstar_vals = c(1.6, 2, 2.4)
 

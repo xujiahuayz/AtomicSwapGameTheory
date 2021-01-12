@@ -17,8 +17,8 @@ library(dplyr)
 # library(mvtnorm)
 library(VGAM) # for erfc
 library(rootSolve)
-library(plotly)
-# library(parallel)
+# library(plotly)
+library(parallel) # for mcapply
 
 opts_chunk$set(dev = 'tikz', 
                fig.path = './Overleaf/figures/', 
@@ -104,12 +104,12 @@ for(Pstar in Pstar_vals){
   
   pt2vs = seq(1e-10,axis_lim[2],length.out = 200)
   
-  util3_B_stop_v = util3_B_stop(pt2vs)
-  util3_B_cont_v = sapply(pt2vs, function(x) util2_B_cont(x, Pstar))
+  util2_B_stop_v = util2_B_stop(pt2vs)
+  util2_B_cont_v = sapply(pt2vs, function(x) util2_B_cont(x, Pstar))
   
-  pt2threshsv = which(diff(util3_B_stop_v > util3_B_cont_v) !=0) # sign switch in the graph
+  pt2threshsv = which(diff(util2_B_stop_v > util2_B_cont_v) !=0) # sign switch in the graph
   
-  plot(pt2vs, util3_B_stop(pt2vs), type = 'l',
+  plot(pt2vs, util2_B_stop_v, type = 'l',
        xlim = axis_lim,
        ylim = axis_lim, 
        xlab = 'Token$_b$ price at $t_2$, $P_{t_2}$', ylab = "Bob's utility at $t_2$, $U_{t_2}^\\mathcal{B}$")
@@ -117,7 +117,7 @@ for(Pstar in Pstar_vals){
   
   points(
   c(mean(pt2vs[pt2threshsv[1]+(0:1)]), mean(pt2vs[pt2threshsv[2]+(0:1)])),
-  c(mean(util3_B_stop_v[pt2threshsv[1]+(0:1)]), mean(util3_B_stop_v[pt2threshsv[2]+(0:1)])),
+  c(mean(util2_B_stop_v[pt2threshsv[1]+(0:1)]), mean(util2_B_stop_v[pt2threshsv[2]+(0:1)])),
   col = c('red','blue'), pch = '.', cex = 5
   )
   
@@ -190,36 +190,70 @@ legend('bottomright', lty = 1,
        )
 ```
 
-```{r util1_A_unknx_plot, include = T, eval = F}
-# Pstars = seq(1.3, 2.5, length.out = 50)
-util1_A_unknx_v = Vectorize(util1_A_unknx)(Pstars)
+```{r util1_A_unknx_plot, include = T, eval = T}
+# util1_A_unknx_v = Vectorize(util1_A_unknx)(Pstars)
+# 
+# save(util1_A_unknx_v, file = 'data/util1_A_unknx_v.rda')
 
-save(util1_A_unknx_v, file = 'data/util1_A_unknx_v.rda')
 load('data/util1_A_unknx_v.rda')
 
+Pstars_test = c(0.01, 1, 2, 5, 10, 20, 25, 100)
+util1_A_unknx_test = c(
+  -0.001306397,
+  0.06348887,
+  0.126816,
+  0.3143151,
+  0.4173118,
+  -1.650157,
+  -2.785154,
+  -13.06417
+)
+
+Pstars_add = c(seq(0.011, 0.19, length.out = 5),
+               seq(3.3, 19, length.out = 15))
+
+# util1_A_unknx_v_add = Vectorize(util1_A_unknx)(Pstars_add)
+#
+# save(util1_A_unknx_v_add, file = 'data/util1_A_unknx_v_add.rda')
+
+load('data/util1_A_unknx_v_add.rda')
+
+odr = c(Pstars, Pstars_test, Pstars_add) %>% order
+ps = c(Pstars, Pstars_test, Pstars_add)[odr]
+util1_A_unknx_vs = c(util1_A_unknx_v, util1_A_unknx_test, util1_A_unknx_v_add)[odr]
+
+nullpoint = approx(x = util1_A_unknx_vs, y = ps, xout = 0)$y
+hightpoint = ps[which.max(util1_A_unknx_vs)]
+par(
+  mar = c(2.6, 2.6, 0, 0),
+  oma = c(1, 1, 0, 0),
+  mgp = c(1.1, 0.2, 0),
+  cex.axis = 1,
+  cex = 2.7,
+  tck = -0.02,
+  bty = 'l',
+  font.main = 1
+)
 
 
-par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.2, 0.2, 0), 
-      cex.axis=1, cex = 3, tck = -0.02, 
-      bty = 'l',
-      font.main = 1)
-
-plot(Pstars, util1_A_stop_v, type = 'l',
-     xlim = axis_lim,
-     ylim = axis_lim,
-     xlab = 'Exchange rate $P_*$',
-     ylab = "Alice's utility at $t_1$, $U_{t_1}^\\mathcal{A}$")
-lines(Pstars, util1_A_cont_v, col = col_cont)
-
-p0boundsind = which(diff(Pstars < util1_A_cont_v)!=0)
+plot(
+  ps,
+  util1_A_unknx_vs,
+  type = 'l',
+  xlim = c(1e-10,13),
+  ylim = c(-0.05,0.45),
+  xlab = 'Amount Token$_a$ locked, $P_*$',
+  ylab = "Alice's utility at $t_1$, $U_{t_1, \\mathrm{x}}^\\mathcal{A}$"
+)
+abline(h = 0, lty = 2, col = 'grey')
 
 points(
-  c(mean(Pstars[p0boundsind[1]+(0:1)]), mean(Pstars[p0boundsind[2]+(0:1)])),
-  c(mean(util1_A_stop_v[p0boundsind[1]+(0:1)]), mean(util1_A_stop_v[p0boundsind[2]+(0:1)])),
+  c(nullpoint, hightpoint),
+  c(0, max(util1_A_unknx_vs)),
   col = c('red','blue'), pch = '.', cex = 5
   )
 
-legend('right', 
+legend('topleft', 
          pch = '.',
          pt.cex = 5,
          col = c('blue','red'), 
@@ -227,15 +261,149 @@ legend('right',
          legend = c('$\\overline{P_*}$', '$\\underline{P_*}$')
          )
 
-legend('bottomright', lty = 1, 
-       seg.len = 0.5,
-       bty = 'n',
-       col = c(col_cont, 'black'), 
-       legend = c(
-         '$U_{t_1}^\\mathcal{A}(\\mathit{cont})$', 
-         '$U_{t_1}^\\mathcal{A}(\\mathit{stop})$'
-         )
-       )
+```
+
+```{r unknx_X_opt_plot, include = T, eval = T}
+pt2vs = seq(1e-10, 13, length.out = 600)
+
+par(
+  mar = c(2.6, 2.6, 0, 0),
+  oma = c(1, 1, 0, 0),
+  mgp = c(1.2, 0.2, 0),
+  cex.axis = 1,
+  cex = 2.7,
+  tck = -0.02,
+  bty = 'l',
+  font.main = 1
+)
+
+Pstar_vs = c(nullpoint %>% round(2), 4, hightpoint %>% round(2))
+# X_opt_v = Vectorize(X_opt)(pt2vs, Pstar = Pstar_vs[1])
+# X_opt_v_2 = Vectorize(X_opt)(pt2vs, Pstar = Pstar_vs[2])
+# X_opt_v_3 = Vectorize(X_opt)(pt2vs, Pstar = Pstar_vs[3])
+# 
+# save(X_opt_v, X_opt_v_2, X_opt_v_3, file = 'data/X_opt_v.Rda')
+load('data/X_opt_v.Rda')
+plot(
+  pt2vs,
+  X_opt_v,
+  type = 'l',
+  xlim = c(1e-10,13),
+  ylim = c(0, 5),
+  xlab = 'Token$_b$ price at $t_2$, $P_{t_2}$',
+  ylab = "Optimal Token$_b$ $X_*$",
+  col = 'red',
+  lwd = lwd_success
+)
+
+lines(pt2vs,
+      X_opt_v_2,
+      col = col_success[1],
+      lty = 2,
+      lwd = lwd_success)
+
+lines(pt2vs,
+      X_opt_v_3,
+      col = 'blue',
+      lty = 3,
+      lwd = lwd_success)
+
+
+legend(
+  'topright',
+  legend = Pstar_vs,
+  col = c('red', col_success[1], 'blue'),
+  lty = c(1, 3, 2),
+  lwd = lwd_success,
+  bty = 'n',
+  title = 'Token$_a$ amount $P_*$'
+)
+```
+
+```{r success_val_unknx, include = T, eval = T}
+Pstars_unknx_no = 40
+Pstars_unknx = seq(0.01, 17, length.out = Pstars_unknx_no)
+# sucrate_v_unknx = Vectorize(sucrate_unknx)(Pstars_unknx)
+# save(sucrate_v_unknx, file = 'data/sucrate_v_unknx.rda')
+load('data/sucrate_v_unknx.rda')
+
+sucrate_unknx_vs = (1:Pstars_unknx_no) %>% sapply(function(x)
+  sucrate_v_unknx[, x]$value)
+
+sucrate_v_unknx_add = list()
+Pstars_unknx_add = c(0.015, 0.11125, 0.01200, 0.05650)
+# for(i in 3:length(Pstars_unknx_add)){
+#   print(i)
+#   sucrate_v_unknx_add[[i]] = sucrate_unknx(Pstars_unknx_add[i])
+#   print(sucrate_v_unknx_add[[i]])
+# }
+# save(sucrate_v_unknx_add, file = 'data/sucrate_v_unknx_add.rda')
+load('data/sucrate_v_unknx_add.rda')
+sucrate_unknx_vs_add = (1:length(Pstars_unknx_add)) %>% sapply(function(x)
+  sucrate_v_unknx_add[[x]]$value)
+
+ps = c(Pstars_unknx, Pstars_unknx_add)
+odr = ps %>% order
+ps = ps[odr]
+suc_unknx_vs = c(sucrate_unknx_vs, sucrate_unknx_vs_add)[odr]
+
+# only feasible points
+sel = ps > nullpoint & ps < hightpoint
+
+load('data/sucrate_v.rda')
+
+par(
+  mar = c(2.6, 2.6, 0, 0),
+  oma = c(1, 1, 0, 0),
+  mgp = c(1.1, 0.2, 0),
+  cex.axis = 1,
+  cex = 2.7,
+  tck = -0.02,
+  bty = 'l',
+  font.main = 1
+)
+
+# plot(
+#   Pstars,
+#   sucrate_v,
+#   type = 'l',
+#   xlab = 'Exchange rate $P_*$',
+#   ylab = "Success rate $\\mathit{SR}$",
+#   xlim = axis_lim,
+#   ylim = c(0, 1.05),
+#   col = col_success[2],
+#   lwd = lwd_success
+# )
+
+plot(
+  Pstars,
+  sucrate_v,
+  type = 'l',
+  xlim = c(1e-10, 8.9),
+  ylim = c(0, 1.05),
+  col = col_success[2],
+  xlab = 'Amount Token$_a$ locked $P_*$',
+  ylab = "Success rate $\\mathit{SR}$",
+  lwd = lwd_success
+)
+
+lines(
+  ps[sel],
+  suc_unknx_vs[sel],
+  col = col_success[1],
+  lty = 2,
+  lwd = lwd_success
+)
+
+legend(
+  'bottomleft',
+  legend = c('basic setup', 'uncertain exchange'),
+  col = col_success[c(2, 1)],
+  lty = c(1, 2),
+  lwd = lwd_success,
+  bty = 'n',
+  # title = 'Collateral $Q$'
+)
 ```
 
 ```{r success_val, include = T, eval = F}
@@ -688,7 +856,7 @@ for(Pstar in Pstar_vals){
   
   pt2vs = seq(1e-10,axis_lim[2],length.out = 200)
   
-  util3_B_stop_v = util3_B_stop(pt2vs)
+  util3_B_stop_v = util2_B_stop(pt2vs)
   util3_B_cont_v = sapply(pt2vs, function(x) util2_B_cont_col(x, Pstar, colla = Q))
   
   pt2threshsv = which(diff(util3_B_stop_v > util3_B_cont_v) !=0) # sign switch in the graph
@@ -820,27 +988,51 @@ load('data/feasible_Pstar.rda')
 load('data/sucrate_v.rda')
 load('data/sucrate_v_col.rda')
 
-par(mar = c(2.6,2.6,0,0), oma = c(1,1,0,0), mgp = c(1.1, 0.2, 0), 
-    cex.axis=1, cex = 2.7, tck = -0.02, 
-    bty = 'l',
-    font.main = 1)
+par(
+  mar = c(2.6, 2.6, 0, 0),
+  oma = c(1, 1, 0, 0),
+  mgp = c(1.1, 0.2, 0),
+  cex.axis = 1,
+  cex = 2.7,
+  tck = -0.02,
+  bty = 'l',
+  font.main = 1
+)
 
-plot(Pstars,sucrate_v,type = 'l', 
-     xlab = 'Exchange rate $P_*$',
-     ylab = "Success rate $\\mathit{SR}$",
-     xlim = axis_lim,
-     ylim = c(0,1.05),
-     col = col_success[2], lwd = lwd_success)
-lines(feasible_Pstar1, sucrate_v_col1, col = col_success[3], lty = 3, lwd = lwd_success)
-lines(feasible_Pstar2, sucrate_v_col2, col = col_success[1], lty = 2, lwd = lwd_success)
+plot(
+  Pstars,
+  sucrate_v,
+  type = 'l',
+  xlab = 'Exchange rate $P_*$',
+  ylab = "Success rate $\\mathit{SR}$",
+  xlim = axis_lim,
+  ylim = c(0, 1.05),
+  col = col_success[2],
+  lwd = lwd_success
+)
+lines(
+  feasible_Pstar1,
+  sucrate_v_col1,
+  col = col_success[3],
+  lty = 3,
+  lwd = lwd_success
+)
+lines(
+  feasible_Pstar2,
+  sucrate_v_col2,
+  col = col_success[1],
+  lty = 2,
+  lwd = lwd_success
+)
 
-legend('topleft',
-       legend = c('0 (basic setup)', Qs),
-       col = col_success[c(2,3,1)],
-       lty = c(1,3,2),
-       lwd = lwd_success,
-       bty = 'n',
-       title = 'Collateral $Q$'
+legend(
+  'topleft',
+  legend = c('0 (basic setup)', Qs),
+  col = col_success[c(2, 3, 1)],
+  lty = c(1, 3, 2),
+  lwd = lwd_success,
+  bty = 'n',
+  title = 'Collateral $Q$'
 )
 ```
 
